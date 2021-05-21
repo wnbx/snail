@@ -11,7 +11,7 @@ import com.acgist.snail.pojo.message.ApplicationMessage;
  */
 public class RefreshTaskStatusEventAdapter extends GuiEvent {
 
-	protected RefreshTaskStatusEventAdapter() {
+	public RefreshTaskStatusEventAdapter() {
 		super(Type.REFRESH_TASK_STATUS, "刷新任务状态事件");
 	}
 
@@ -22,7 +22,7 @@ public class RefreshTaskStatusEventAdapter extends GuiEvent {
 	
 	@Override
 	protected void executeExtend(Object ... args) {
-		final ApplicationMessage message = ApplicationMessage.message(ApplicationMessage.Type.REFRESH);
+		final ApplicationMessage message = ApplicationMessage.Type.REFRESH_TASK_STATUS.build();
 		GuiContext.getInstance().sendExtendGuiMessage(message);
 	}
 

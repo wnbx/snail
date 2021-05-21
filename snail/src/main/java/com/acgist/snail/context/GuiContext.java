@@ -7,9 +7,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.IContext;
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.context.exception.NetException;
 import com.acgist.snail.gui.event.GuiEvent;
 import com.acgist.snail.gui.event.GuiEvent.Type;
+import com.acgist.snail.gui.event.adapter.AlertEventAdapter;
+import com.acgist.snail.gui.event.adapter.BuildEventAdapter;
+import com.acgist.snail.gui.event.adapter.ExitEventAdapter;
+import com.acgist.snail.gui.event.adapter.HideEventAdapter;
+import com.acgist.snail.gui.event.adapter.MultifileEventAdapter;
+import com.acgist.snail.gui.event.adapter.NoticeEventAdapter;
+import com.acgist.snail.gui.event.adapter.RefreshTaskListEventAdapter;
+import com.acgist.snail.gui.event.adapter.RefreshTaskStatusEventAdapter;
+import com.acgist.snail.gui.event.adapter.ResponseEventAdapter;
+import com.acgist.snail.gui.event.adapter.ShowEventAdapter;
 import com.acgist.snail.net.IMessageSender;
 import com.acgist.snail.pojo.ITaskSession;
 import com.acgist.snail.pojo.message.ApplicationMessage;
@@ -38,15 +49,14 @@ public final class GuiContext implements IContext {
 	public enum Mode {
 		
 		/**
-		 * <p>本地模式：本地GUI</p>
-		 * <p>本地GUI：JavaFX</p>
+		 * <p>本地模式：本地GUI（JavaFX）</p>
 		 */
 		NATIVE,
 		/**
 		 * <p>后台模式：扩展GUI</p>
-		 * <p>扩展GUI：自定义实现，通过系统消息和系统通知来完成系统管理和任务管理。</p>
+		 * <p>通过系统消息和系统通知来完成系统管理和任务管理</p>
 		 * 
-		 * @see com.acgist.snail.pojo.message.ApplicationMessage.Type
+		 * @see ApplicationMessage.Type
 		 */
 		EXTEND;
 		
@@ -80,6 +90,23 @@ public final class GuiContext implements IContext {
 		 */
 		ERROR;
 		
+		/**
+		 * <p>获取消息类型</p>
+		 * 
+		 * @param value 消息类型
+		 * 
+		 * @return 消息类型
+		 */
+		public static final MessageType of(String value) {
+			final var types = MessageType.values();
+			for (MessageType type : types) {
+				if(type.name().equalsIgnoreCase(value)) {
+					return type;
+				}
+			}
+			return null;
+		}
+		
 	}
 	
 	/**
@@ -89,32 +116,32 @@ public final class GuiContext implements IContext {
 	
 	/**
 	 * <p>运行模式</p>
-	 * <p>默认：本地GUI</p>
 	 */
 	private Mode mode = Mode.NATIVE;
 	/**
-	 * <p>种子文件选择列表（B编码）</p>
+	 * <p>选择下载文件列表（B编码）</p>
+	 * 
+	 * @see GuiEvent.Type#MULTIFILE
 	 */
 	private String files;
 	/**
 	 * <p>扩展GUI阻塞锁</p>
 	 * <p>使用扩展GUI时阻止程序关闭</p>
 	 */
-	private final Object lock = new Object();
-	/**
-	 * <p>事件Map</p>
-	 * <p>事件类型=事件</p>
-	 */
-	private final Map<GuiEvent.Type, GuiEvent> events = new EnumMap<>(GuiEvent.Type.class);
+	private final Object lock;
 	/**
 	 * <p>扩展GUI消息代理</p>
 	 */
 	private IMessageSender extendGuiMessageSender;
-	
 	/**
-	 * <p>禁止创建实例</p>
+	 * <p>事件Map</p>
+	 * <p>事件类型=事件</p>
 	 */
+	private final Map<GuiEvent.Type, GuiEvent> events;
+	
 	private GuiContext() {
+		this.lock = new Object();
+		this.events = new EnumMap<>(GuiEvent.Type.class);
 	}
 	
 	/**
@@ -130,6 +157,22 @@ public final class GuiContext implements IContext {
 	}
 
 	/**
+	 * <p>注册GUI事件默认适配器</p>
+	 */
+	public static final void registerAdapter() {
+		GuiContext.register(new ShowEventAdapter());
+		GuiContext.register(new HideEventAdapter());
+		GuiContext.register(new ExitEventAdapter());
+		GuiContext.register(new BuildEventAdapter());
+		GuiContext.register(new AlertEventAdapter());
+		GuiContext.register(new NoticeEventAdapter());
+		GuiContext.register(new ResponseEventAdapter());
+		GuiContext.register(new MultifileEventAdapter());
+		GuiContext.register(new RefreshTaskListEventAdapter());
+		GuiContext.register(new RefreshTaskStatusEventAdapter());
+	}
+	
+	/**
 	 * <p>初始化GUI上下文</p>
 	 * 
 	 * @param args 启动参数
@@ -138,10 +181,10 @@ public final class GuiContext implements IContext {
 	 */
 	public GuiContext init(String ... args) {
 		if(args == null) {
-			// 没有参数
+			LOGGER.debug("没有设置启动参数");
 		} else {
 			if(LOGGER.isInfoEnabled()) {
-				LOGGER.info("启动参数：{}", String.join(",", args));
+				LOGGER.info("启动参数：{}", String.join(SymbolConfig.Symbol.COMMA.toString(), args));
 			}
 			String value;
 			for (String arg : args) {
@@ -151,7 +194,7 @@ public final class GuiContext implements IContext {
 					this.mode = Mode.EXTEND;
 				}
 			}
-			LOGGER.info("运行模式：{}", this.mode);
+			LOGGER.debug("运行模式：{}", this.mode);
 		}
 		return this;
 	}
@@ -184,7 +227,7 @@ public final class GuiContext implements IContext {
 	}
 
 	/**
-	 * <p>创建窗口</p>
+	 * <p>新建窗口</p>
 	 * 
 	 * @return GuiContext
 	 */
@@ -243,17 +286,6 @@ public final class GuiContext implements IContext {
 	}
 	
 	/**
-	 * <p>种子文件选择</p>
-	 * 
-	 * @param taskSession 任务信息
-	 * 
-	 * @return GuiContext
-	 */
-	public GuiContext torrent(ITaskSession taskSession) {
-		return this.event(Type.TORRENT, taskSession);
-	}
-	
-	/**
 	 * <p>响应消息</p>
 	 * 
 	 * @param message 消息
@@ -262,6 +294,17 @@ public final class GuiContext implements IContext {
 	 */
 	public GuiContext response(String message) {
 		return this.event(Type.RESPONSE, message);
+	}
+	
+	/**
+	 * <p>选择下载文件</p>
+	 * 
+	 * @param taskSession 任务信息
+	 * 
+	 * @return GuiContext
+	 */
+	public GuiContext multifile(ITaskSession taskSession) {
+		return this.event(Type.MULTIFILE, taskSession);
 	}
 	
 	/**
@@ -292,31 +335,32 @@ public final class GuiContext implements IContext {
 	 */
 	public GuiContext event(GuiEvent.Type type, Object ... args) {
 		if(type == null) {
-			LOGGER.warn("未知GUI事件：{}", type);
+			LOGGER.warn("错误GUI事件：{}", type);
 			return this;
 		}
 		final GuiEvent event = this.events.get(type);
 		if(event == null) {
-			LOGGER.warn("GUI事件没有注册：{}", type);
+			LOGGER.warn("未知GUI事件：{}", type);
 			return this;
 		}
+		LOGGER.debug("执行GUI事件：{}", type);
 		event.execute(this.mode, args);
 		return this;
 	}
 	
 	/**
-	 * <p>获取种子文件选择列表</p>
+	 * <p>获取选择下载文件列表（B编码）</p>
 	 * 
-	 * @return 种子文件选择列表（B编码）
+	 * @return 选择下载文件列表（B编码）
 	 */
 	public String files() {
 		return this.files;
 	}
 	
 	/**
-	 * <p>设置种子文件选择列表</p>
+	 * <p>设置选择下载文件列表（B编码）</p>
 	 * 
-	 * @param files 种子文件选择列表（B编码）
+	 * @param files 选择下载文件列表（B编码）
 	 */
 	public void files(String files) {
 		this.files = files;
@@ -369,8 +413,8 @@ public final class GuiContext implements IContext {
 			try {
 				this.lock.wait(Long.MAX_VALUE);
 			} catch (InterruptedException e) {
-				LOGGER.debug("线程等待异常", e);
 				Thread.currentThread().interrupt();
+				LOGGER.debug("线程等待异常", e);
 			}
 		}
 	}

@@ -5,10 +5,10 @@ import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.config.PeerConfig;
 import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.context.exception.NetException;
 import com.acgist.snail.net.UdpClient;
-import com.acgist.snail.net.torrent.peer.PeerService;
 import com.acgist.snail.pojo.wrapper.HeaderWrapper;
 import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.NetUtils;
@@ -32,14 +32,14 @@ public final class LocalServiceDiscoveryClient extends UdpClient<LocalServiceDis
 	 * @param socketAddress 地址
 	 */
 	private LocalServiceDiscoveryClient(InetSocketAddress socketAddress) {
-		super("LSD Client", new LocalServiceDiscoveryMessageHandler(), socketAddress);
+		super("LSD Client", new LocalServiceDiscoveryMessageHandler(socketAddress));
 	}
 
 	/**
-	 * <p>创建本地发现客户端</p>
+	 * <p>新建本地发现客户端</p>
 	 */
 	public static final LocalServiceDiscoveryClient newInstance() {
-		return new LocalServiceDiscoveryClient(NetUtils.buildSocketAddress(LocalServiceDiscoveryServer.LSD_HOST, LocalServiceDiscoveryServer.LSD_PORT));
+		return new LocalServiceDiscoveryClient(NetUtils.buildSocketAddress(LocalServiceDiscoveryServer.lsdHost(), LocalServiceDiscoveryServer.LSD_PORT));
 	}
 
 	@Override
@@ -67,17 +67,17 @@ public final class LocalServiceDiscoveryClient extends UdpClient<LocalServiceDis
 	}
 	
 	/**
-	 * <p>创建本地发现消息</p>
+	 * <p>新建本地发现消息</p>
 	 * 
 	 * @param infoHashs InfoHash数组
 	 * 
 	 * @return 本地发现消息
 	 */
 	private String buildMessage(String ... infoHashs) {
-		final String peerId = StringUtils.hex(PeerService.getInstance().peerId());
+		final String peerId = StringUtils.hex(PeerConfig.getInstance().peerId());
 		final HeaderWrapper builder = HeaderWrapper.newBuilder(PROTOCOL);
 		builder
-			.header(LocalServiceDiscoveryMessageHandler.HEADER_HOST, LocalServiceDiscoveryServer.LSD_HOST + ":" + LocalServiceDiscoveryServer.LSD_PORT)
+			.header(LocalServiceDiscoveryMessageHandler.HEADER_HOST, LocalServiceDiscoveryServer.lsdHost() + ":" + LocalServiceDiscoveryServer.LSD_PORT)
 			.header(LocalServiceDiscoveryMessageHandler.HEADER_PORT, String.valueOf(SystemConfig.getTorrentPort()))
 			.header(LocalServiceDiscoveryMessageHandler.HEADER_COOKIE, peerId);
 		for (String infoHash : infoHashs) {

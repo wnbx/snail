@@ -26,13 +26,13 @@ public final class UtpClient extends UdpClient<UtpMessageHandler> {
 	 * @param peerSubMessageHandler Peer消息代理
 	 */
 	private UtpClient(PeerSession peerSession, PeerSubMessageHandler peerSubMessageHandler) {
-		super("UTP Client", new UtpMessageHandler(peerSubMessageHandler, peerSession.peerSocketAddress()), peerSession.peerSocketAddress());
+		super("UTP Client", new UtpMessageHandler(peerSubMessageHandler, peerSession.peerSocketAddress()));
 		this.peerSession = peerSession;
 		this.peerSubMessageHandler = peerSubMessageHandler;
 	}
 	
 	/**
-	 * <p>创建UTP客户端</p>
+	 * <p>新建UTP客户端</p>
 	 * 
 	 * @param peerSession Peer信息
 	 * @param peerSubMessageHandler Peer消息代理
@@ -47,11 +47,11 @@ public final class UtpClient extends UdpClient<UtpMessageHandler> {
 	public boolean open() {
 		return open(TorrentServer.getInstance().channel());
 	}
-
+	
 	/**
 	 * <p>连接</p>
 	 * 
-	 * @return true-连接成功；false-连接失败；
+	 * @return 是否连接成功
 	 */
 	public boolean connect() {
 		return this.handler.connect();

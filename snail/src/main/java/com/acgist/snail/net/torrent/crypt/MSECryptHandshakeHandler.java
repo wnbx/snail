@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.slf4j.Logger;
@@ -25,7 +26,6 @@ import com.acgist.snail.pojo.session.TorrentSession;
 import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.DigestUtils;
 import com.acgist.snail.utils.NumberUtils;
-import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>MSE握手代理</p>
@@ -59,11 +59,6 @@ public final class MSECryptHandshakeHandler {
 	 * <p>缓冲区大小：{@value}</p>
 	 */
 	private static final int BUFFER_LENGTH = 4 * SystemConfig.ONE_KB;
-	/**
-	 * <p>加密握手超时时间（毫秒）：{@value}</p>
-	 * <p>不能超过{@link PeerSubMessageHandler#HANDSHAKE_TIMEOUT}</p>
-	 */
-	private static final int HANDSHAKE_TIMEOUT = PeerSubMessageHandler.HANDSHAKE_TIMEOUT * SystemConfig.ONE_SECOND_MILLIS;
 	
 	/**
 	 * <p>加密握手步骤</p>
@@ -177,7 +172,7 @@ public final class MSECryptHandshakeHandler {
 	}
 
 	/**
-	 * <p>创建加密代理</p>
+	 * <p>新建加密代理</p>
 	 * 
 	 * @param peerUnpackMessageCodec Peer消息处理器
 	 * @param peerSubMessageHandler Peer消息代理
@@ -223,6 +218,7 @@ public final class MSECryptHandshakeHandler {
 		try {
 			if(this.checkPlaintextPeerHandshake(message)) {
 				LOGGER.debug("跳过加密握手：收到Peer明文握手消息");
+				this.peerUnpackMessageCodec.decode(message);
 				return;
 			}
 			synchronized (this.buffer) {
@@ -251,7 +247,7 @@ public final class MSECryptHandshakeHandler {
 					this.receiveConfirmPadding();
 					break;
 				default:
-					LOGGER.warn("加密握手失败（未适配步骤）：{}", this.step);
+					LOGGER.warn("加密握手失败（步骤未适配）：{}", this.step);
 					break;
 				}
 			}
@@ -290,7 +286,6 @@ public final class MSECryptHandshakeHandler {
 	
 	/**
 	 * <p>数据加密</p>
-	 * <p>不改变buffer读取和写入状态</p>
 	 * 
 	 * @param buffer 数据
 	 */
@@ -302,7 +297,6 @@ public final class MSECryptHandshakeHandler {
 	
 	/**
 	 * <p>数据解密</p>
-	 * <p>不改变buffer读取和写入状态</p>
 	 * 
 	 * @param buffer 数据
 	 */
@@ -320,10 +314,11 @@ public final class MSECryptHandshakeHandler {
 			synchronized (this.handshakeLock) {
 				if(!this.completed) {
 					try {
-						this.handshakeLock.wait(HANDSHAKE_TIMEOUT);
+						// 加密握手超时时间不能超过Peer连接超时时间
+						this.handshakeLock.wait(SystemConfig.CONNECT_TIMEOUT_MILLIS);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 				}
 			}
@@ -421,7 +416,7 @@ public final class MSECryptHandshakeHandler {
 		final InfoHash infoHash = torrentSession.infoHash();
 		this.cipher = MSECipher.newSender(dhSecretBytes, infoHash);
 		this.cipherVC = MSECipher.newSender(dhSecretBytes, infoHash);
-		ByteBuffer message = ByteBuffer.allocate(40); // 20 + 20
+		ByteBuffer message = ByteBuffer.allocate(40);
 		final MessageDigest digest = DigestUtils.sha1();
 //		HASH('req1', S)
 		digest.update("req1".getBytes());
@@ -441,12 +436,12 @@ public final class MSECryptHandshakeHandler {
 //		ENCRYPT(VC, crypto_provide, len(PadC), PadC, len(IA))
 		final byte[] padding = this.buildZeroPadding(CryptConfig.PADDING_MAX_LENGTH);
 		final int paddingLength = padding.length;
-		message = ByteBuffer.allocate(16 + paddingLength); // 8 + 4 + 2 + Padding + 2 + 0
-		message.put(CryptConfig.VC); // VC
-		message.putInt(CryptConfig.STRATEGY.provide()); // crypto_provide
-		message.putShort((short) paddingLength); // len(PadC)
-		message.put(padding); // PadC
-		message.putShort((short) 0); // len(IA)
+		message = ByteBuffer.allocate(16 + paddingLength);
+		message.put(CryptConfig.VC);
+		message.putInt(CryptConfig.STRATEGY.provide());
+		message.putShort((short) paddingLength);
+		message.put(padding);
+		message.putShort((short) 0);
 //		ENCRYPT(IA)
 //		没有IA数据
 		this.cipher.encrypt(message);
@@ -503,7 +498,7 @@ public final class MSECryptHandshakeHandler {
 			digest.update("req2".getBytes());
 			digest.update(infoHashMatch.infoHash());
 			final byte[] req2 = digest.digest();
-			if (ArrayUtils.equals(ArrayUtils.xor(req2, req3), req2x3Peer)) {
+			if (Arrays.equals(ArrayUtils.xor(req2, req3), req2x3Peer)) {
 				infoHash = infoHashMatch;
 				break;
 			}
@@ -519,11 +514,12 @@ public final class MSECryptHandshakeHandler {
 		this.cipher.decrypt(this.buffer);
 		final byte[] vc = new byte[CryptConfig.VC_LENGTH];
 		this.buffer.get(vc);
-		final int provide = this.buffer.getInt(); // 协商选择
-		this.strategy = this.selectStrategy(provide); // 选择策略
+		final int provide = this.buffer.getInt();
+		this.strategy = this.selectStrategy(provide);
 		LOGGER.debug("加密握手（接收加密协议协商-确认加密协议）：{}-{}", provide, this.strategy);
 		this.step = Step.RECEIVE_PROVIDE_PADDING;
-		this.msePaddingSync = MSEPaddingSync.newInstance(2); // PadC IA
+		// PadC IA
+		this.msePaddingSync = MSEPaddingSync.newInstance(2);
 		this.receiveProvidePadding();
 	}
 	
@@ -536,9 +532,7 @@ public final class MSECryptHandshakeHandler {
 		LOGGER.debug("加密握手（接收加密协议协商Padding）步骤：{}", this.step);
 		final boolean success = this.msePaddingSync.sync(this.buffer);
 		if(success) {
-			if(LOGGER.isDebugEnabled()) {
-				this.msePaddingSync.allPadding().forEach(bytes -> LOGGER.debug("加密握手（接收加密协议协商Padding）：{}", StringUtils.hex(bytes)));
-			}
+			LOGGER.debug("加密握手（接收加密协议协商Padding）：{}", this.msePaddingSync);
 			this.sendConfirm();
 		}
 	}
@@ -554,7 +548,7 @@ public final class MSECryptHandshakeHandler {
 		LOGGER.debug("加密握手（发送确认加密协议）步骤：{}", this.step);
 		final byte[] padding = this.buildZeroPadding(CryptConfig.PADDING_MAX_LENGTH);
 		final int paddingLength = padding.length;
-		final ByteBuffer message = ByteBuffer.allocate(14 + paddingLength); // 8 + 4 + 2 + Padding
+		final ByteBuffer message = ByteBuffer.allocate(14 + paddingLength);
 		message.put(CryptConfig.VC);
 		message.putInt(this.strategy.provide());
 		message.putShort((short) paddingLength);
@@ -580,6 +574,7 @@ public final class MSECryptHandshakeHandler {
 	 */
 	private void receiveConfirm() throws NetException {
 		LOGGER.debug("加密握手（接收确认加密协议）步骤：{}", this.step);
+		// 相同数据发送方加密和接收方解密结果是一样的
 		final byte[] vcMatch = this.cipherVC.decrypt(CryptConfig.VC);
 		if(!this.match(vcMatch)) {
 			return;
@@ -595,8 +590,8 @@ public final class MSECryptHandshakeHandler {
 		this.cipher.decrypt(this.buffer);
 		final byte[] vc = new byte[CryptConfig.VC_LENGTH];
 		this.buffer.get(vc);
-		final int provide = this.buffer.getInt(); // 协商选择
-		this.strategy = this.selectStrategy(provide); // 选择策略
+		final int provide = this.buffer.getInt();
+		this.strategy = this.selectStrategy(provide);
 		LOGGER.debug("加密握手（接收确认加密协议-确认加密协议）：{}-{}", provide, this.strategy);
 		this.step = Step.RECEIVE_CONFIRM_PADDING;
 		this.msePaddingSync = MSEPaddingSync.newInstance(1);
@@ -612,17 +607,14 @@ public final class MSECryptHandshakeHandler {
 		LOGGER.debug("加密握手（接收确认加密协议Padding）步骤：{}", this.step);
 		final boolean success = this.msePaddingSync.sync(this.buffer);
 		if(success) {
-			if(LOGGER.isDebugEnabled()) {
-				this.msePaddingSync.allPadding().forEach(bytes -> LOGGER.debug("加密握手（接收确认加密协议Padding）：{}", StringUtils.hex(bytes)));
-			}
+			LOGGER.debug("加密握手（接收确认加密协议Padding）：{}", this.msePaddingSync);
 			this.completed(this.strategy.crypt());
 		}
 	}
 	
 	/**
 	 * <p>选择加密策略</p>
-	 * <p>协商：根据接入客户端和本地综合选择出使用加密或者明文</p>
-	 * <p>确认：加密或者明文</p>
+	 * <p>协商：根据接入客户端和本地加密策略综合选择加密策略</p>
 	 * 
 	 * @param provide 加密协商
 	 * 
@@ -635,23 +627,14 @@ public final class MSECryptHandshakeHandler {
 		final boolean crypt = (provide & CryptAlgo.ARC4.provide()) == CryptAlgo.ARC4.provide();
 		Strategy selected = null;
 		if (plaintext || crypt) {
-			switch (CryptConfig.STRATEGY) { // 本地策略
-			case PLAINTEXT:
-				selected = plaintext ? Strategy.PLAINTEXT : null;
-				break;
-			case PREFER_PLAINTEXT:
-				selected = plaintext ? Strategy.PLAINTEXT : Strategy.ENCRYPT;
-				break;
-			case PREFER_ENCRYPT:
-				selected = crypt ? Strategy.ENCRYPT : Strategy.PLAINTEXT;
-				break;
-			case ENCRYPT:
-				selected = crypt ? Strategy.ENCRYPT : null;
-				break;
-			default:
-				selected = CryptConfig.STRATEGY.crypt() ? Strategy.ENCRYPT : Strategy.PLAINTEXT;
-				break;
-			}
+			// 本地策略
+			selected = switch (CryptConfig.STRATEGY) {
+				case PLAINTEXT -> plaintext ? Strategy.PLAINTEXT : null;
+				case PREFER_PLAINTEXT -> plaintext ? Strategy.PLAINTEXT : Strategy.ENCRYPT;
+				case PREFER_ENCRYPT -> crypt ? Strategy.ENCRYPT : Strategy.PLAINTEXT;
+				case ENCRYPT -> crypt ? Strategy.ENCRYPT : null;
+				default -> CryptConfig.STRATEGY.crypt() ? Strategy.ENCRYPT : Strategy.PLAINTEXT;
+			};
 		}
 		if (selected == null) {
 			throw new NetException("加密握手失败（未知加密协商）：" + provide);
@@ -662,38 +645,43 @@ public final class MSECryptHandshakeHandler {
 	/**
 	 * <p>填充：随机值</p>
 	 * 
-	 * @param maxLength 填充长度
+	 * @param maxLength 最大填充长度
 	 * 
 	 * @return 填充数据
 	 */
 	private byte[] buildPadding(int maxLength) {
-		final Random random = NumberUtils.random();
-		final byte[] padding = new byte[random.nextInt(maxLength + 1)];
-		for (int index = 0; index < padding.length; index++) {
-			padding[index] = (byte) random.nextInt(SystemConfig.UNSIGNED_BYTE_MAX);
-		}
-		return padding;
+		return ArrayUtils.random(this.randomLength(maxLength));
 	}
 	
 	/**
 	 * <p>填充：0</p>
 	 * 
-	 * @param maxLength 填充长度
+	 * @param maxLength 最大填充长度
 	 * 
 	 * @return 填充数据
 	 */
 	private byte[] buildZeroPadding(int maxLength) {
-		final Random random = NumberUtils.random();
-		return new byte[random.nextInt(maxLength + 1)];
+		return new byte[this.randomLength(maxLength)];
 	}
 	
 	/**
-	 * <p>判断是否是Peer握手消息</p>
-	 * <p>如果是Peer握手消息直接使用明文</p>
+	 * <p>获取随机填充长度</p>
+	 * 
+	 * @param maxLength 最大填充长度
+	 * 
+	 * @return 填充长度
+	 */
+	private int randomLength(int maxLength) {
+		final Random random = NumberUtils.random();
+		return random.nextInt(maxLength + 1);
+	}
+	
+	/**
+	 * <p>判断是否是明文Peer握手消息</p>
 	 * 
 	 * @param message 消息
 	 * 
-	 * @return true-Peer握手；false-加密握手；
+	 * @return 是否是明文Peer握手消息
 	 * 
 	 * @throws NetException 网络异常
 	 */
@@ -707,15 +695,16 @@ public final class MSECryptHandshakeHandler {
 			// 判断协议名称
 			final byte[] names = new byte[PeerConfig.PROTOCOL_NAME_LENGTH];
 			message.get(names);
-			if(ArrayUtils.equals(names, PeerConfig.PROTOCOL_NAME_BYTES)) {
+			if(Arrays.equals(names, PeerConfig.PROTOCOL_NAME_BYTES)) {
 				// 握手消息直接使用明文
 				this.plaintext();
-				message.position(0); // 重置长度
-				this.peerUnpackMessageCodec.decode(message); // 处理消息
+				// 重置长度
+				message.position(0);
 				return true;
 			}
 		}
-		message.position(0); // 重置长度
+		// 重置长度
+		message.position(0);
 		return false;
 	}
 	
@@ -738,7 +727,8 @@ public final class MSECryptHandshakeHandler {
 			if(this.buffer.get() != bytes[index]) {
 				// 最开始的位置移动一位继续匹配
 				this.buffer.position(this.buffer.position() - index);
-				index = 0; // 注意位置
+				// 注意重置索引位置
+				index = 0;
 				if(this.buffer.remaining() < length) {
 					// 剩余数据不足跳出：防止丢弃匹配数据
 					break;

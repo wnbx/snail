@@ -16,7 +16,6 @@ import com.acgist.snail.context.NodeContext;
 import com.acgist.snail.format.BEncodeDecoder;
 import com.acgist.snail.format.BEncodeEncoder;
 import com.acgist.snail.pojo.session.NodeSession;
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.BeanUtils;
 import com.acgist.snail.utils.CollectionUtils;
 import com.acgist.snail.utils.NetUtils;
@@ -44,7 +43,7 @@ public class DhtResponse extends DhtMessage {
 	private final List<Object> e;
 
 	/**
-	 * <p>创建响应</p>
+	 * <p>新建响应</p>
 	 * <p>生成NodeId</p>
 	 * 
 	 * @param t 节点ID
@@ -131,7 +130,19 @@ public class DhtResponse extends DhtMessage {
 
 	/**
 	 * <p>反序列化节点列表</p>
-	 * <p>节点自动加入系统</p>
+	 * 
+	 * @param key 参数名称
+	 * 
+	 * @return 节点列表
+	 * 
+	 * @see #deserializeNodes(byte[])
+	 */
+	protected List<NodeSession> deserializeNodes(String key) {
+		return deserializeNodes(this.getBytes(key));
+	}
+	
+	/**
+	 * <p>反序列化节点列表</p>
 	 * 
 	 * @param bytes 节点数据
 	 * 
@@ -139,7 +150,7 @@ public class DhtResponse extends DhtMessage {
 	 * 
 	 * @see #deserializeNode(ByteBuffer)
 	 */
-	protected static final List<NodeSession> deserializeNodes(byte[] bytes) {
+	private static final List<NodeSession> deserializeNodes(byte[] bytes) {
 		if(bytes == null) {
 			return List.of();
 		}
@@ -157,7 +168,6 @@ public class DhtResponse extends DhtMessage {
 	
 	/**
 	 * <p>反序列化节点</p>
-	 * <p>节点自动加入系统</p>
 	 * 
 	 * @param buffer 消息
 	 * 
@@ -184,16 +194,16 @@ public class DhtResponse extends DhtMessage {
 	}
 
 	/**
-	 * <p>获取错误代码</p>
+	 * <p>获取错误编码</p>
 	 * 
-	 * @return 错误代码
+	 * @return 错误编码
 	 */
 	public int errorCode() {
 		final var value = this.getErrorMessage(0);
-		if(value instanceof Number) {
-			return ((Number) value).intValue();
+		if(value instanceof Number number) {
+			return number.intValue();
 		} else {
-			LOGGER.warn("DHT不支持的错误代码类型：{}", value);
+			LOGGER.warn("DHT不支持的错误编码类型：{}", value);
 		}
 		return ErrorCode.CODE_201.code();
 	}
@@ -205,10 +215,10 @@ public class DhtResponse extends DhtMessage {
 	 */
 	public String errorMessage() {
 		final var value = getErrorMessage(1);
-		if(value instanceof byte[]) {
-			return new String((byte[]) value);
-		} else if(value instanceof String) {
-			return (String) value;
+		if(value instanceof byte[] bytes) {
+			return new String(bytes);
+		} else if(value instanceof String string) {
+			return string;
 		} else {
 			LOGGER.warn("DHT不支持的错误描述类型：{}", value);
 		}
@@ -255,9 +265,8 @@ public class DhtResponse extends DhtMessage {
 		if(this == object) {
 			return true;
 		}
-		if(object instanceof DhtResponse) {
-			final DhtResponse response = (DhtResponse) object;
-			return ArrayUtils.equals(this.t, response.t);
+		if(object instanceof DhtResponse response) {
+			return Arrays.equals(this.t, response.t);
 		}
 		return false;
 	}

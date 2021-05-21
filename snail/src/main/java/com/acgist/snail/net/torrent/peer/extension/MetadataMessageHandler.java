@@ -1,6 +1,7 @@
 package com.acgist.snail.net.torrent.peer.extension;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -20,9 +21,8 @@ import com.acgist.snail.pojo.bean.InfoHash;
 import com.acgist.snail.pojo.bean.Torrent;
 import com.acgist.snail.pojo.session.PeerSession;
 import com.acgist.snail.pojo.session.TorrentSession;
-import com.acgist.snail.utils.ArrayUtils;
+import com.acgist.snail.utils.DigestUtils;
 import com.acgist.snail.utils.NumberUtils;
-import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>Extension for Peers to Send Metadata Files</p>
@@ -75,7 +75,7 @@ public final class MetadataMessageHandler extends ExtensionTypeMessageHandler {
 	}
 	
 	/**
-	 * <p>创建Metadata扩展协议代理</p>
+	 * <p>新建Metadata扩展协议代理</p>
 	 * 
 	 * @param peerSession Peer
 	 * @param torrentSession BT任务信息
@@ -105,18 +105,10 @@ public final class MetadataMessageHandler extends ExtensionTypeMessageHandler {
 		}
 		LOGGER.debug("处理metadata消息：{}", metadataType);
 		switch (metadataType) {
-		case REQUEST:
-			this.request(decoder);
-			break;
-		case DATA:
-			this.data(decoder);
-			break;
-		case REJECT:
-			this.reject(decoder);
-			break;
-		default:
-			LOGGER.warn("处理metadata消息错误（类型未适配）：{}", metadataType);
-			break;
+			case REQUEST -> this.request(decoder);
+			case DATA -> this.data(decoder);
+			case REJECT -> this.reject(decoder);
+			default -> LOGGER.warn("处理metadata消息错误（类型未适配）：{}", metadataType);
 		}
 	}
 	
@@ -199,9 +191,9 @@ public final class MetadataMessageHandler extends ExtensionTypeMessageHandler {
 		final byte[] x = decoder.oddBytes(); // 剩余数据作为Slice数据
 		System.arraycopy(x, 0, bytes, pos, length);
 		final byte[] sourceHash = this.infoHash.infoHash();
-		final byte[] targetHash = StringUtils.sha1(bytes);
+		final byte[] targetHash = DigestUtils.sha1(bytes);
 		// 判断Hash值是否相等（相等表示已经下载完成：完成后保存种子文件）
-		if(ArrayUtils.equals(sourceHash, targetHash)) {
+		if(Arrays.equals(sourceHash, targetHash)) {
 			this.torrentSession.saveTorrent();
 		}
 	}
@@ -227,7 +219,7 @@ public final class MetadataMessageHandler extends ExtensionTypeMessageHandler {
 	}
 	
 	/**
-	 * <p>创建消息</p>
+	 * <p>新建消息</p>
 	 * 
 	 * @param type 消息类型
 	 * @param piece Slice索引

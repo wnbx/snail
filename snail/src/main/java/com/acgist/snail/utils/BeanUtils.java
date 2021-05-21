@@ -1,7 +1,7 @@
 package com.acgist.snail.utils;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,9 +20,6 @@ public final class BeanUtils {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(BeanUtils.class);
 
-	/**
-	 * <p>工具类禁止实例化</p>
-	 */
 	private BeanUtils() {
 	}
 	
@@ -30,7 +27,7 @@ public final class BeanUtils {
 	 * <p>通过反射生成实例</p>
 	 * <p>调用默认无参构造方法</p>
 	 * 
-	 * @param <T> 类型泛型
+	 * @param <T> 类型
 	 * 
 	 * @param clazz 类型
 	 * 
@@ -40,7 +37,7 @@ public final class BeanUtils {
 		Objects.requireNonNull(clazz);
 		try {
 			return clazz.getDeclaredConstructor().newInstance();
-		} catch (Exception e) {
+		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
 			LOGGER.error("通过反射生成实例异常：{}", clazz, e);
 		}
 		return null;
@@ -57,7 +54,7 @@ public final class BeanUtils {
 	 * 	</tr>
 	 * 	<tr>
 	 * 		<td>{@code Date}</td>
-	 * 		<td>{@code String(yyyyMMddHHmmss)}</td>
+	 * 		<td>{@code String(yyyy-MM-dd HH:mm:ss)}</td>
 	 * 	</tr>
 	 * 	<tr>
 	 * 		<td>{@code byte[]}</td>
@@ -72,12 +69,12 @@ public final class BeanUtils {
 	public static final Object objectToString(Object object) {
 		if (object == null) {
 			return null;
-		} else if (object instanceof Enum<?>) {
-			return ((Enum<?>) object).name();
-		} else if (object instanceof Date) {
-			return DateUtils.dateFormat((Date) object);
-		} else if (object instanceof byte[]) {
-			return new String((byte[]) object);
+		} else if (object instanceof Enum<?> value) {
+			return value.name();
+		} else if (object instanceof Date date) {
+			return DateUtils.dateFormat(date);
+		} else if (object instanceof byte[] bytes) {
+			return new String(bytes);
 		} else {
 			return object;
 		}
@@ -92,8 +89,10 @@ public final class BeanUtils {
 	 * @return toString
 	 */
 	public static final String toString(Object instance, Object ... values) {
-		Objects.requireNonNull(instance);
-		final StringBuilder builder = new StringBuilder(instance.getClass().toString());
+		if(instance == null) {
+			return null;
+		}
+		final StringBuilder builder = new StringBuilder(instance.getClass().getName());
 		builder.append("@");
 		if (ArrayUtils.isEmpty(values)) {
 			builder.append(toMap(instance).toString());
@@ -109,19 +108,21 @@ public final class BeanUtils {
 	}
 	
 	/**
-	 * <p>获取对象属性Map</p>
+	 * <p>获取对象属性数据</p>
 	 * 
 	 * @param instance 对象
 	 * 
-	 * @return 属性Map
+	 * @return 属性数据
 	 */
 	public static final Map<String, Object> toMap(final Object instance) {
-		Objects.requireNonNull(instance);
+		if(instance == null) {
+			return Map.of();
+		}
 		final Map<String, Object> map = new HashMap<>();
 		final String[] properties = properties(instance.getClass());
+		final PropertyDescriptor descriptor = PropertyDescriptor.newInstance(instance);
 		for (String property : properties) {
-			final Object object = propertyValue(instance, property);
-			map.put(property, objectToString(object));
+			map.put(property, objectToString(descriptor.get(property)));
 		}
 		return map;
 	}
@@ -136,9 +137,8 @@ public final class BeanUtils {
 	public static final String[] properties(final Class<?> clazz) {
 		Objects.requireNonNull(clazz);
 		String[] properties = null;
-		final Class<?> superClazz = clazz.getSuperclass(); // 父类
+		final Class<?> superClazz = clazz.getSuperclass();
 		if(superClazz != null) {
-			// 递归获取属性
 			properties = properties(superClazz);
 		} else {
 			properties = new String[0];
@@ -153,67 +153,31 @@ public final class BeanUtils {
 	}
 	
 	/**
-	 * <p>获取对象指定属性的属性值</p>
+	 * <p>获取对象属性值</p>
 	 * 
 	 * @param instance 对象
 	 * @param properties 属性
 	 * 
 	 * @return 属性值
 	 */
-	public static final Object[] propertiesValue(final Object instance, final String[] properties) {
+	public static final Object[] properties(final Object instance, final String[] properties) {
 		Objects.requireNonNull(instance);
 		Objects.requireNonNull(properties);
-		return Stream.of(properties)
-			.map(property -> propertyValue(instance, property))
-			.toArray();
+		final PropertyDescriptor descriptor = PropertyDescriptor.newInstance(instance);
+		return Stream.of(properties).map(descriptor::get).toArray();
 	}
 	
 	/**
-	 * <p>获取对象指定属性的属性值</p>
+	 * <p>设置对象属性值</p>
 	 * 
 	 * @param instance 对象
-	 * @param property 属性
-	 * 
-	 * @return 属性值
+	 * @param properties 属性值
 	 */
-	public static final Object propertyValue(final Object instance, final String property) {
+	public static final void properties(Object instance, Map<String, Object> properties) {
 		Objects.requireNonNull(instance);
-		Objects.requireNonNull(property);
-		final Class<?> clazz = instance.getClass();
-		try {
-			final PropertyDescriptor descriptor = new PropertyDescriptor(property, clazz);
-			final Method method = descriptor.getReadMethod();
-			if(method != null) {
-				return method.invoke(instance);
-			}
-		} catch (Exception e) {
-			LOGGER.error("获取对象指定属性的属性值异常：{}-{}", clazz, property, e);
-		}
-		return null;
-	}
-	
-	/**
-	 * <p>设置对象属性</p>
-	 * 
-	 * @param instance 对象
-	 * @param data 属性
-	 */
-	public static final void properties(Object instance, Map<String, Object> data) {
-		Objects.requireNonNull(instance);
-		Objects.requireNonNull(data);
-		final Class<?> clazz = instance.getClass();
-		final String[] properties = properties(clazz);
-		for (String property : properties) {
-			try {
-				final PropertyDescriptor descriptor = new PropertyDescriptor(property, clazz);
-				final Method method = descriptor.getWriteMethod();
-				if(method != null) {
-					method.invoke(instance, data.get(property));
-				}
-			} catch (Exception e) {
-				LOGGER.error("设置对象属性异常：{}-{}", clazz, property, e);
-			}
-		}
+		Objects.requireNonNull(properties);
+		final PropertyDescriptor descriptor = PropertyDescriptor.newInstance(instance);
+		properties.forEach(descriptor::set);
 	}
 	
 }

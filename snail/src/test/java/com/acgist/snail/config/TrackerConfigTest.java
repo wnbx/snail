@@ -1,5 +1,6 @@
 package com.acgist.snail.config;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
@@ -11,10 +12,16 @@ import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.utils.FileUtils;
 import com.acgist.snail.utils.Performance;
 
-public class TrackerConfigTest extends Performance {
+class TrackerConfigTest extends Performance {
 
 	@Test
-	public void testPersistent() throws DownloadException {
+	void testAnnounces() {
+		assertNotNull(TrackerConfig.getInstance().announces());
+	}
+	
+	@Test
+	void testPersistent() throws DownloadException {
+		FileUtils.userDirFile("/config/bt.tracker.properties").delete();
 		final TrackerConfig config = TrackerConfig.getInstance();
 		TrackerContext.getInstance().sessions("https://www.acgit.com", Arrays.asList("https://www.baidu.com"));
 		config.persistent();

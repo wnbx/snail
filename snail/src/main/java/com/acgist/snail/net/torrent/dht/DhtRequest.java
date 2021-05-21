@@ -12,12 +12,12 @@ import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.config.DhtConfig;
 import com.acgist.snail.config.DhtConfig.QType;
+import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.context.DhtContext;
 import com.acgist.snail.context.NodeContext;
 import com.acgist.snail.format.BEncodeDecoder;
 import com.acgist.snail.format.BEncodeEncoder;
 import com.acgist.snail.pojo.session.NodeSession;
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.BeanUtils;
 import com.acgist.snail.utils.CollectionUtils;
 import com.acgist.snail.utils.NetUtils;
@@ -53,7 +53,7 @@ public class DhtRequest extends DhtMessage {
 	private DhtResponse response;
 	
 	/**
-	 * <p>创建请求</p>
+	 * <p>新建请求</p>
 	 * <p>生成NodeId</p>
 	 * 
 	 * @param q 请求类型
@@ -184,7 +184,8 @@ public class DhtRequest extends DhtMessage {
 			return new byte[0];
 		}
 		final var availableNodes = nodes.stream()
-			.filter(node -> NetUtils.ipAddress(node.getHost())) // 只分享IP地址
+			// 只分享IP地址
+			.filter(node -> NetUtils.ip(node.getHost()))
 			.collect(Collectors.toList());
 		if(CollectionUtils.isEmpty(availableNodes)) {
 			return new byte[0];
@@ -206,10 +207,10 @@ public class DhtRequest extends DhtMessage {
 			synchronized (this) {
 				if(!this.hasResponse()) {
 					try {
-						this.wait(DhtConfig.DHT_TIMEOUT);
+						this.wait(SystemConfig.RECEIVE_TIMEOUT_MILLIS);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 				}
 			}
@@ -235,9 +236,8 @@ public class DhtRequest extends DhtMessage {
 		if(this == object) {
 			return true;
 		}
-		if(object instanceof DhtRequest) {
-			final DhtRequest request = (DhtRequest) object;
-			return ArrayUtils.equals(this.t, request.t);
+		if(object instanceof DhtRequest request) {
+			return Arrays.equals(this.t, request.t);
 		}
 		return false;
 	}

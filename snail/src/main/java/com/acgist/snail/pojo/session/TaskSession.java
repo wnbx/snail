@@ -5,37 +5,51 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.acgist.snail.config.SymbolConfig;
+import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.context.EntityContext;
 import com.acgist.snail.context.GuiContext;
 import com.acgist.snail.context.ProtocolContext;
 import com.acgist.snail.context.StatisticsContext;
-import com.acgist.snail.context.SystemThreadContext;
 import com.acgist.snail.context.TaskContext;
 import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.downloader.IDownloader;
-import com.acgist.snail.pojo.IStatisticsSession;
 import com.acgist.snail.pojo.ITaskSession;
+import com.acgist.snail.pojo.StatisticsGetter;
 import com.acgist.snail.pojo.entity.TaskEntity;
-import com.acgist.snail.pojo.wrapper.MultifileSelectorWrapper;
+import com.acgist.snail.pojo.wrapper.DescriptionWrapper;
 import com.acgist.snail.protocol.Protocol.Type;
 import com.acgist.snail.utils.BeanUtils;
 import com.acgist.snail.utils.DateUtils;
 import com.acgist.snail.utils.FileUtils;
-import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>任务信息</p>
  * 
  * @author acgist
  */
-public final class TaskSession implements ITaskSession {
+public final class TaskSession extends StatisticsGetter implements ITaskSession {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(TaskSession.class);
 	
 	/**
-	 * <p>时间格式</p>
+	 * <p>时间格式：{@value}</p>
 	 */
 	private static final String PATTERN = "yyyy-MM-dd HH:mm";
+	/**
+	 * <p>任务状态：{@value}</p>
+	 */
+	private static final String TASK_STATUS_VALUE = "statusValue";
+	/**
+	 * <p>删除等待时间（毫秒）：{@value}</p>
+	 */
+	private static final long DELETE_TIMEOUT = 2L * SystemConfig.ONE_SECOND_MILLIS;
 
 	/**
 	 * <p>下载器</p>
@@ -46,21 +60,17 @@ public final class TaskSession implements ITaskSession {
 	 */
 	private final TaskEntity entity;
 	/**
-	 * <p>统计</p>
+	 * <p>删除锁</p>
 	 */
-	private final IStatisticsSession statistics;
+	private final AtomicBoolean deleteLock;
 	
 	/**
 	 * @param entity 任务
-	 * 
-	 * @throws DownloadException 下载异常
 	 */
-	private TaskSession(TaskEntity entity) throws DownloadException {
-		if(entity == null) {
-			throw new DownloadException("创建TaskSession失败（任务不存在）");
-		}
+	private TaskSession(TaskEntity entity) {
+		super(new StatisticsSession(true, StatisticsContext.getInstance().statistics()));
 		this.entity = entity;
-		this.statistics = new StatisticsSession(true, StatisticsContext.getInstance().statistics());
+		this.deleteLock = new AtomicBoolean(false);
 	}
 	
 	/**
@@ -73,6 +83,9 @@ public final class TaskSession implements ITaskSession {
 	 * @throws DownloadException 下载异常
 	 */
 	public static final ITaskSession newInstance(TaskEntity entity) throws DownloadException {
+		if(entity == null) {
+			throw new DownloadException("新建TaskSession失败（entity）");
+		}
 		return new TaskSession(entity);
 	}
 	
@@ -107,25 +120,9 @@ public final class TaskSession implements ITaskSession {
 	
 	@Override
 	public List<String> multifileSelected() {
-		final String description = this.getDescription();
-		if(StringUtils.isEmpty(description)) {
-			return List.of();
-		} else {
-			final MultifileSelectorWrapper wrapper = MultifileSelectorWrapper.newDecoder(description);
-			return wrapper.deserialize();
-		}
+		return DescriptionWrapper.newDecoder(this.getDescription()).deserialize();
 	}
-	
-	@Override
-	public IStatisticsSession statistics() {
-		return this.statistics;
-	}
-	
-	@Override
-	public long downloadSize() {
-		return this.statistics.downloadSize();
-	}
-	
+
 	@Override
 	public void downloadSize(long size) {
 		this.statistics.downloadSize(size);
@@ -137,18 +134,27 @@ public final class TaskSession implements ITaskSession {
 	}
 	
 	@Override
+	public Map<String, Object> taskMessage() {
+		final Map<String, Object> data = BeanUtils.toMap(this.entity).entrySet().stream()
+			.filter(entry -> entry.getKey() != null && entry.getValue() != null)
+			.collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+		data.put(TASK_STATUS_VALUE, this.getStatusValue());
+		return data;
+	}
+	
+	@Override
 	public boolean statusAwait() {
 		return this.getStatus() == Status.AWAIT;
 	}
 	
 	@Override
-	public boolean statusPause() {
-		return this.getStatus() == Status.PAUSE;
+	public boolean statusDownload() {
+		return this.getStatus() == Status.DOWNLOAD;
 	}
 	
 	@Override
-	public boolean statusDownload() {
-		return this.getStatus() == Status.DOWNLOAD;
+	public boolean statusPause() {
+		return this.getStatus() == Status.PAUSE;
 	}
 	
 	@Override
@@ -172,15 +178,6 @@ public final class TaskSession implements ITaskSession {
 	}
 	
 	@Override
-	public Map<String, Object> taskMessage() {
-		return BeanUtils.toMap(this.entity).entrySet().stream()
-			.filter(entry -> entry.getKey() != null && entry.getValue() != null)
-			.collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-	}
-	
-	//================Gui面板数据绑定================//
-	
-	@Override
 	public String getNameValue() {
 		return this.getName();
 	}
@@ -188,7 +185,7 @@ public final class TaskSession implements ITaskSession {
 	@Override
 	public String getStatusValue() {
 		if(this.statusDownload()) {
-			return FileUtils.formatSize(this.statistics.downloadSpeed()) + "/S";
+			return FileUtils.formatSpeed(this.statistics.downloadSpeed());
 		} else {
 			return this.getStatus().getValue();
 		}
@@ -199,14 +196,17 @@ public final class TaskSession implements ITaskSession {
 		if(this.statusCompleted()) {
 			return FileUtils.formatSize(this.getSize());
 		} else {
-			return FileUtils.formatSize(this.downloadSize()) + "/" + FileUtils.formatSize(this.getSize());
+			return
+				FileUtils.formatSize(this.downloadSize()) +
+				SymbolConfig.Symbol.SLASH.toString() +
+				FileUtils.formatSize(this.getSize());
 		}
 	}
 
 	@Override
 	public String getCreateDateValue() {
 		if(this.entity.getCreateDate() == null) {
-			return "-";
+			return SymbolConfig.Symbol.MINUS.toString();
 		} else {
 			return DateUtils.dateFormat(this.entity.getCreateDate(), PATTERN);
 		}
@@ -218,7 +218,7 @@ public final class TaskSession implements ITaskSession {
 			if(this.statusDownload()) {
 				final long downloadSpeed = this.statistics.downloadSpeed();
 				if(downloadSpeed == 0L) {
-					return "-";
+					return SymbolConfig.Symbol.MINUS.toString();
 				} else {
 					// 剩余下载时间
 					long second = (this.getSize() - this.downloadSize()) / downloadSpeed;
@@ -228,20 +228,27 @@ public final class TaskSession implements ITaskSession {
 					return DateUtils.format(second);
 				}
 			} else {
-				return "-";
+				return SymbolConfig.Symbol.MINUS.toString();
 			}
 		} else {
 			return DateUtils.dateFormat(this.getEndDate(), PATTERN);
 		}
 	}
 	
-	//================实体操作================//
-	
 	@Override
 	public void reset() {
-		// 非常重要：如果任务被错误的保存为下载状态需要重置为等待状态（否者不能正常下载）
 		if(this.statusDownload()) {
 			this.setStatus(Status.AWAIT);
+		}
+	}
+	
+	@Override
+	public void await() {
+		if(this.statusDownload()) {
+			// 下载中的任务修改等待
+			this.setStatus(Status.AWAIT);
+			// 直接调用解除下载：不用保存状态
+			this.unlockDownload();
 		}
 	}
 	
@@ -264,7 +271,7 @@ public final class TaskSession implements ITaskSession {
 	public void restart() throws DownloadException {
 		// 暂停任务
 		this.pause();
-		// 删除下载器
+		// 删除旧下载器
 		this.downloader = null;
 		if(this.statusCompleted()) {
 			// 已经完成任务：修改状态、清空完成时间
@@ -272,16 +279,6 @@ public final class TaskSession implements ITaskSession {
 			this.setEndDate(null);
 		}
 		this.start();
-	}
-	
-	@Override
-	public void await() {
-		if(this.statusDownload()) {
-			// 下载中的任务修改等待
-			this.setStatus(Status.AWAIT);
-			// 直接调用解除下载：不用保存状态
-			this.unlockDownload();
-		}
 	}
 	
 	@Override
@@ -309,22 +306,51 @@ public final class TaskSession implements ITaskSession {
 	@Override
 	public void delete() {
 		if(this.statusDelete()) {
-			// 任务已经删除不修改状态
+			// 任务已经处于删除状态
 			return;
 		}
 		if(this.statusDownload()) {
-			// 正在下载：标记删除下载结束自动释放
+			// 正在下载：标记删除下载结束释放资源
+			this.deleteLock.set(true);
 			this.updateStatus(Status.DELETE);
-		} else if(this.downloader != null) {
-			// 没有下载：异步删除
-			SystemThreadContext.submit(this.downloader::delete);
+			this.lockDelete();
 		}
-		// 删除下载任务
+		// 删除旧下载器
+		if(this.downloader != null) {
+			this.downloader.delete();
+			this.downloader = null;
+		}
+		// 删除任务
 		TaskContext.getInstance().remove(this);
-		// 删除下载器
-		this.downloader = null;
 		// 删除实体
 		EntityContext.getInstance().delete(this.entity);
+	}
+	
+	/**
+	 * <p>添加删除锁</p>
+	 * <p>下载中任务删除时需要等待文件释放：防止删除文件失败</p>
+	 */
+	private void lockDelete() {
+		if(this.deleteLock.get()) {
+			synchronized (this.deleteLock) {
+				if(this.deleteLock.get()) {
+					try {
+						this.deleteLock.wait(DELETE_TIMEOUT);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
+					}
+				}
+			}
+		}
+	}
+	
+	@Override
+	public void unlockDelete() {
+		synchronized (this.deleteLock) {
+			this.deleteLock.set(false);
+			this.deleteLock.notifyAll();
+		}
 	}
 
 	@Override
@@ -335,11 +361,16 @@ public final class TaskSession implements ITaskSession {
 	}
 	
 	@Override
-	public boolean verify() throws DownloadException {
+	public boolean verify() {
 		if(this.downloader == null) {
 			return this.downloadFile().exists();
 		}
-		return this.downloader.verify();
+		try {
+			return this.downloader.verify();
+		} catch (DownloadException e) {
+			LOGGER.error("校验下载文件异常", e);
+		}
+		return false;
 	}
 	
 	@Override
@@ -360,16 +391,17 @@ public final class TaskSession implements ITaskSession {
 			return;
 		}
 		if(status == Status.COMPLETED) {
-			this.setEndDate(new Date()); // 设置完成时间
+			// 设置完成时间
+			this.setEndDate(new Date());
 		}
 		this.setStatus(status);
 		this.update();
-		this.unlockDownload(); // 状态修改完成才能调用
-		TaskContext.getInstance().refresh(); // 刷新下载
+		// 释放下载锁：修改状态后再释放
+		this.unlockDownload();
+		// 刷新下载任务
+		TaskContext.getInstance().refresh();
 	}
 
-	//================实体================//
-	
 	@Override
 	public String getId() {
 		return this.entity.getId();
@@ -447,7 +479,8 @@ public final class TaskSession implements ITaskSession {
 	
 	@Override
 	public void setStatus(Status status) {
-		GuiContext.getInstance().refreshTaskStatus(); // 刷新状态
+		// 刷新状态
+		GuiContext.getInstance().refreshTaskStatus();
 		this.entity.setStatus(status);
 	}
 	

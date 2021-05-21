@@ -2,7 +2,6 @@ package com.acgist.snail.net.torrent.dht;
 
 import java.net.InetSocketAddress;
 
-import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.net.UdpClient;
 import com.acgist.snail.net.torrent.TorrentServer;
 import com.acgist.snail.pojo.bean.InfoHash;
@@ -12,11 +11,8 @@ import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>DHT客户端</p>
- * <p>客户端和服务端使用同一个固定端口</p>
  * 
  * @author acgist
- * 
- * @see SystemConfig#getTorrentPort()
  */
 public final class DhtClient extends UdpClient<DhtMessageHandler> {
 
@@ -24,11 +20,11 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	 * @param socketAddress 地址
 	 */
 	private DhtClient(InetSocketAddress socketAddress) {
-		super("DHT Client", new DhtMessageHandler(), socketAddress);
+		super("DHT Client", new DhtMessageHandler(socketAddress));
 	}
 	
 	/**
-	 * <p>创建DHT客户端</p>
+	 * <p>新建DHT客户端</p>
 	 * 
 	 * @param host 地址
 	 * @param port 端口
@@ -40,7 +36,7 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	}
 	
 	/**
-	 * <p>创建DHT客户端</p>
+	 * <p>新建DHT客户端</p>
 	 * 
 	 * @param socketAddress 地址
 	 * 
@@ -61,7 +57,7 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	 * @return 节点
 	 */
 	public NodeSession ping() {
-		return this.handler.ping(this.socketAddress);
+		return this.handler.ping();
 	}
 	
 	/**
@@ -79,7 +75,7 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	 * @param target NodeId或者InfoHash
 	 */
 	public void findNode(byte[] target) {
-		this.handler.findNode(this.socketAddress, target);
+		this.handler.findNode(target);
 	}
 	
 	/**
@@ -97,7 +93,7 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	 * @param infoHash InfoHash
 	 */
 	public void getPeers(byte[] infoHash) {
-		this.handler.getPeers(this.socketAddress, infoHash);
+		this.handler.getPeers(infoHash);
 	}
 	
 	/**
@@ -117,7 +113,7 @@ public final class DhtClient extends UdpClient<DhtMessageHandler> {
 	 * @param infoHash InfoHash
 	 */
 	public void announcePeer(byte[] token, byte[] infoHash) {
-		this.handler.announcePeer(this.socketAddress, token, infoHash);
+		this.handler.announcePeer(token, infoHash);
 	}
 	
 }

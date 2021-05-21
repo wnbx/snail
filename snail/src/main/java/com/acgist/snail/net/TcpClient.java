@@ -19,9 +19,11 @@ import com.acgist.snail.utils.NetUtils;
 /**
  * <p>TCP客户端</p>
  * 
+ * @param <T> TCP消息代理类型
+ * 
  * @author acgist
  */
-public abstract class TcpClient<T extends TcpMessageHandler> extends ClientMessageHandlerAdapter<T> {
+public abstract class TcpClient<T extends TcpMessageHandler> extends Client<T> {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TcpClient.class);
 	
@@ -35,31 +37,26 @@ public abstract class TcpClient<T extends TcpMessageHandler> extends ClientMessa
 		try {
 			final var executor = SystemThreadContext.newCacheExecutor(0, 60L, SystemThreadContext.SNAIL_THREAD_TCP_CLIENT);
 			group = AsynchronousChannelGroup.withThreadPool(executor);
-		} catch (Exception e) {
+		} catch (IOException e) {
 			LOGGER.error("启动TCP Client Group异常", e);
 		}
 		GROUP = group;
 	}
 	
 	/**
-	 * <p>客户端名称</p>
+	 * <p>超时时间（秒）</p>
 	 */
-	private String name;
-	/**
-	 * <p>超时时间</p>
-	 */
-	private int timeout;
+	private final int timeout;
 	
 	/**
 	 * <p>TCP客户端</p>
 	 * 
 	 * @param name 客户端名称
-	 * @param timeout 超时时间
+	 * @param timeout 超时时间（秒）
 	 * @param handler 消息代理
 	 */
 	protected TcpClient(String name, int timeout, T handler) {
-		super(handler);
-		this.name = name;
+		super(name, handler);
 		this.timeout = timeout;
 	}
 	
@@ -67,6 +64,8 @@ public abstract class TcpClient<T extends TcpMessageHandler> extends ClientMessa
 	 * <p>连接服务端</p>
 	 * 
 	 * @return 连接状态
+	 * 
+	 * @see #connect(String, int)
 	 */
 	public abstract boolean connect();
 	
@@ -80,29 +79,26 @@ public abstract class TcpClient<T extends TcpMessageHandler> extends ClientMessa
 	 */
 	protected boolean connect(final String host, final int port) {
 		boolean success = true;
-		AsynchronousSocketChannel socket = null;
+		AsynchronousSocketChannel channel = null;
 		try {
-			socket = AsynchronousSocketChannel.open(GROUP);
-			// TODO：参数调优：TCP_NODELAY
-//			socket.setOption(StandardSocketOptions.TCP_NODELAY, true);
-			socket.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-			socket.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-			final Future<Void> future = socket.connect(NetUtils.buildSocketAddress(host, port));
+			channel = AsynchronousSocketChannel.open(GROUP);
+//			channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+			channel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+			channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+			final Future<Void> future = channel.connect(NetUtils.buildSocketAddress(host, port));
 			future.get(this.timeout, TimeUnit.SECONDS);
-			this.handler.handle(socket);
+			this.handler.handle(channel);
 		} catch (InterruptedException e) {
-			LOGGER.error("TCP客户端连接异常：{}-{}", host, port, e);
 			Thread.currentThread().interrupt();
+			LOGGER.error("TCP客户端连接异常：{}-{}", host, port, e);
 			success = false;
 		} catch (IOException | ExecutionException | TimeoutException e) {
 			LOGGER.error("TCP客户端连接异常：{}-{}", host, port, e);
 			success = false;
 		} finally {
-			if(success) {
-				// 连接成功
-			} else {
-				IoUtils.close(socket);
-				this.handler.close();
+			if(!success) {
+				IoUtils.close(channel);
+				this.close();
 			}
 		}
 		return success;

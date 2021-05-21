@@ -1,12 +1,14 @@
 package com.acgist.snail.pojo.bean;
 
+import java.util.Arrays;
+
 import com.acgist.snail.config.SystemConfig;
-import com.acgist.snail.utils.ArrayUtils;
-import com.acgist.snail.utils.StringUtils;
+import com.acgist.snail.utils.BeanUtils;
+import com.acgist.snail.utils.DigestUtils;
 
 /**
  * <p>Piece下载信息</p>
- * <p>下载基于文件下载，所以当某个Piece处于两个文件交接处时，该Piece会被分为两次下载。</p>
+ * <p>BT任务基于文件下载，当某个Piece处于两个文件交接处时会被分为两次下载。</p>
  * 
  * @author acgist
  */
@@ -34,7 +36,7 @@ public final class TorrentPiece {
 	 */
 	private final int end;
 	/**
-	 * <p>数据长度：end - begin</p>
+	 * <p>数据长度</p>
 	 */
 	private final int length;
 	/**
@@ -47,17 +49,14 @@ public final class TorrentPiece {
 	private final byte[] hash;
 	/**
 	 * <p>是否校验</p>
-	 * <p>文件第一块和最后一块不验证：多文件可能不同时下载</p>
 	 */
 	private final boolean verify;
 	/**
-	 * <p>已下载大小</p>
-	 * <p>每次获取到Slice数据后修改</p>
+	 * <p>已经下载数据大小</p>
 	 */
 	private int size;
 	/**
-	 * <p>请求内偏移：当前选择下载Piece数据的内偏移</p>
-	 * <p>每次获取到Slice数据后修改</p>
+	 * <p>Piece数据内偏移</p>
 	 */
 	private int position;
 	
@@ -83,7 +82,7 @@ public final class TorrentPiece {
 	}
 
 	/**
-	 * <p>创建Piece下载信息</p>
+	 * <p>新建Piece下载信息</p>
 	 * 
 	 * @param pieceLength Piece大小
 	 * @param index Piece索引
@@ -99,8 +98,7 @@ public final class TorrentPiece {
 	}
 	
 	/**
-	 * <p>开始偏移</p>
-	 * <p>Piece开始位置在整个任务中的绝对偏移</p>
+	 * <p>获取Piece在BT任务中的开始偏移</p>
 	 * 
 	 * @return 开始偏移
 	 */
@@ -109,8 +107,7 @@ public final class TorrentPiece {
 	}
 	
 	/**
-	 * <p>结束偏移</p>
-	 * <p>Piece结束位置在整个任务中的绝对偏移</p>
+	 * <p>获取Piece在BT任务中的结束偏移</p>
 	 * 
 	 * @return 结束偏移
 	 */
@@ -120,7 +117,7 @@ public final class TorrentPiece {
 	
 	/**
 	 * <p>判断文件是否包含当前Piece</p>
-	 * <p>包含开始不包含结束（即两边判断条件一样）：判断时都使用等于</p>
+	 * <p>包含开始和不包含结束（两边判断条件一样）：判断时都使用等于</p>
 	 * 
 	 * @param fileBeginPos 文件开始偏移
 	 * @param fileEndPos 文件结束偏移
@@ -142,7 +139,7 @@ public final class TorrentPiece {
 	/**
 	 * <p>判断是否还有更多的数据请求</p>
 	 * 
-	 * @return 是否还有更多
+	 * @return 是否还有更多的数据请求
 	 */
 	public boolean hasMoreSlice() {
 		return this.position < this.length;
@@ -151,7 +148,7 @@ public final class TorrentPiece {
 	/**
 	 * <p>判断是否下载完成</p>
 	 * 
-	 * @return 是否完成
+	 * @return 是否下载完成
 	 */
 	public boolean completed() {
 		return this.size >= this.length;
@@ -168,17 +165,15 @@ public final class TorrentPiece {
 	
 	/**
 	 * <p>获取本次请求数据大小</p>
-	 * <p>已经发送所有请求返回：{@code 0}</p>
-	 * <p>获取数据后修改{@link #position}</p>
+	 * <p>注意：会重新计算内偏移</p>
 	 * 
-	 * @return 本地请求数据大小
+	 * @return 本次请求数据大小
 	 */
 	public int length() {
-		if(this.position == this.length) {
+		if(this.position >= this.length) {
 			return 0;
 		}
 		final int remaining = this.length - this.position;
-		// 剩余大小不满足一个Slice
 		if(SLICE_LENGTH > remaining) {
 			this.position = this.length;
 			return remaining;
@@ -190,12 +185,11 @@ public final class TorrentPiece {
 	
 	/**
 	 * <p>写入Slice数据</p>
-	 * <p>写入后修改{@link #size}</p>
 	 * 
-	 * @param begin 数据开始位移：整个Piece内偏移
-	 * @param bytes 数据
+	 * @param begin Piece内开始偏移
+	 * @param bytes Slice数据
 	 * 
-	 * @return true-完成；false-没有完成；
+	 * @return 是否下载完成
 	 */
 	public boolean write(final int begin, final byte[] bytes) {
 		synchronized (this) {
@@ -208,7 +202,7 @@ public final class TorrentPiece {
 	/**
 	 * <p>读取Slice数据</p>
 	 * 
-	 * @param begin 数据开始位移：整个Piece内偏移
+	 * @param begin Piece内开始偏移
 	 * @param size 长度
 	 * 
 	 * @return Slice数据
@@ -233,9 +227,6 @@ public final class TorrentPiece {
 		}
 		// 读取数据真实长度
 		final int length = endPos - beginPos;
-		if(length <= 0) {
-			return null;
-		}
 		final byte[] bytes = new byte[length];
 		System.arraycopy(this.data, beginPos, bytes, 0, length);
 		return bytes;
@@ -248,21 +239,23 @@ public final class TorrentPiece {
 	 */
 	public boolean verify() {
 		if(this.verify) {
-			final var hash = StringUtils.sha1(this.data);
-			return ArrayUtils.equals(hash, this.hash);
+			return Arrays.equals(DigestUtils.sha1(this.data), this.hash);
 		}
 		return true;
 	}
-
+	
 	/**
-	 * <p>获取Piece大小</p>
+	 * <p>判断是否下载完成并且校验成功</p>
 	 * 
-	 * @return Piece大小
+	 * @return 是否下载完成并且校验成功
+	 * 
+	 * @see #completed()
+	 * @see #verify()
 	 */
-	public long getPieceLength() {
-		return this.pieceLength;
+	public boolean completedAndVerify() {
+		return this.completed() && this.verify();
 	}
-
+	
 	/**
 	 * <p>获取Piece索引</p>
 	 * 
@@ -307,5 +300,10 @@ public final class TorrentPiece {
 	public byte[] getData() {
 		return this.data;
 	}
-
+	
+	@Override
+	public String toString() {
+		return BeanUtils.toString(this, this.index);
+	}
+	
 }

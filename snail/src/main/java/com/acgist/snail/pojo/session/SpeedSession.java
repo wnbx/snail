@@ -15,11 +15,6 @@ public final class SpeedSession {
 	 * <p>采样次数：{@value}</p>
 	 */
 	private static final byte SAMPLE_SIZE = 10;
-	/**
-	 * <p>速度采样时间</p>
-	 * <p>小于刷新时间：防止统计误差</p>
-	 */
-	private static final long SAMPLE_TIME = 4L * SystemConfig.ONE_SECOND_MILLIS;
 
 	/**
 	 * <p>速度</p>
@@ -28,7 +23,7 @@ public final class SpeedSession {
 	/**
 	 * <p>当前采样位置</p>
 	 */
-	private byte index = 0;
+	private byte bufferSampleIndex = 0;
 	/**
 	 * <p>速度累计采样</p>
 	 */
@@ -36,14 +31,14 @@ public final class SpeedSession {
 	/**
 	 * <p>最后一次采样时间</p>
 	 */
-	private long bufferSampleTime = System.currentTimeMillis();
+	private volatile long bufferSampleTime = System.currentTimeMillis();
 	/**
 	 * <p>速度采样集合</p>
 	 * <p>每次计算速度时采样一次放入到集合</p>
 	 */
 	private final int[] bufferSamples = new int[SAMPLE_SIZE];
 	/**
-	 * <p>速度采样时间</p>
+	 * <p>采样时间集合</p>
 	 */
 	private final long[] bufferSampleTimes = new long[SAMPLE_SIZE];
 	
@@ -57,18 +52,22 @@ public final class SpeedSession {
 	}
 
 	/**
-	 * <p>计算速度</p>
-	 * <p>超过采样时间：计算速度</p>
+	 * <p>获取速度</p>
+	 * <p>超过采样时间：重新计算速度</p>
 	 * <p>小于采样时间：返回上次速度</p>
 	 * 
 	 * @return 速度
 	 */
-	public synchronized long speed() {
+	public long speed() {
 		final long time = System.currentTimeMillis();
 		final long interval = time - this.bufferSampleTime;
-		if(interval >= SAMPLE_TIME) {
-			this.speed = this.calculateSpeed(interval);
-			this.bufferSampleTime = time;
+		if(interval >= SystemConfig.REFRESH_INTERVAL_MILLIS) {
+			synchronized (this) {
+				if(time - this.bufferSampleTime == interval) {
+					this.bufferSampleTime = time;
+					this.speed = this.calculateSpeed(interval);
+				}
+			}
 		}
 		return this.speed;
 	}
@@ -81,10 +80,10 @@ public final class SpeedSession {
 	 * @return 速度
 	 */
 	private long calculateSpeed(long interval) {
-		this.bufferSamples[this.index] = this.bufferSample.getAndSet(0);
-		this.bufferSampleTimes[this.index] = interval;
-		if(++this.index >= SAMPLE_SIZE) {
-			this.index = 0;
+		this.bufferSamples[this.bufferSampleIndex] = this.bufferSample.getAndSet(0);
+		this.bufferSampleTimes[this.bufferSampleIndex] = interval;
+		if(++this.bufferSampleIndex >= SAMPLE_SIZE) {
+			this.bufferSampleIndex = 0;
 		}
 		long buffer = 0L;
 		long bufferTime = 0L;

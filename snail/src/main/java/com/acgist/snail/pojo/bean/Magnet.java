@@ -9,8 +9,8 @@ import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>磁力链接</p>
- * <p>只支持单文件磁力链接下载（不支持多文件）</p>
  * <p>协议链接：https://baike.baidu.com/item/%E7%A3%81%E5%8A%9B%E9%93%BE%E6%8E%A5/5867775</p>
+ * <p>注意：只支持单文件下载</p>
  * 
  * @author acgist
  */
@@ -25,23 +25,41 @@ public final class Magnet implements Serializable {
 	 */
 	public enum Type {
 		
-		/** MD5 */
+		/**
+		 * <p>MD5</p>
+		 */
 		MD5("urn:md5:"),
-		/** AICH */
+		/**
+		 * <p>AICH</p>
+		 */
 		AICH("urn:aich:"),
-		/** Kazaa */
+		/**
+		 * <p>Kazaa</p>
+		 */
 		KAZAA("urn:kzhash:"),
-		/** BTIH：BitTorrent */
+		/**
+		 * <p>BTIH：BitTorrent</p>
+		 */
 		BTIH("urn:btih:"),
-		/** ED2K */
+		/**
+		 * <p>ED2K</p>
+		 */
 		ED2K("urn:ed2k:"),
-		/** SHA-1 */
+		/**
+		 * <p>SHA-1</p>
+		 */
 		SHA1("urn:sha1:"),
-		/** CRC-32 */
+		/**
+		 * <p>CRC-32</p>
+		 */
 		CRC32("urn:crc32:"),
-		/** TTH：TigerTree */
+		/**
+		 * <p>TTH：TigerTree</p>
+		 */
 		TTH("urn:tree:tiger:"),
-		/** BitPrint */
+		/**
+		 * <p>BitPrint</p>
+		 */
 		BITPRINT("urn:bitprint:");
 		
 		/**
@@ -72,17 +90,22 @@ public final class Magnet implements Serializable {
 	 */
 	private String dn;
 	/**
+	 * <p>文件大小</p>
+	 */
+	private Long xl;
+	/**
 	 * <p>资源URN</p>
+	 * <p>文件散列值URN</p>
 	 */
 	private String xt;
 	/**
-	 * <p>文件链接（经过编码）</p>
-	 * <p>BT磁力链接可以直接使用下载种子文件</p>
+	 * <p>文件链接</p>
+	 * <p>原始文件链接</p>
 	 */
 	private String as;
 	/**
-	 * <p>绝对资源（经过编码）</p>
-	 * <p>BT磁力链接可以直接使用下载种子文件</p>
+	 * <p>绝对资源</p>
+	 * <p>种子文件链接</p>
 	 */
 	private String xs;
 	/**
@@ -96,7 +119,7 @@ public final class Magnet implements Serializable {
 	 */
 	private Type type;
 	/**
-	 * <p>BT：BitTorrent InfoHashHex</p>
+	 * <p>BT：InfoHashHex</p>
 	 * 
 	 * @see Type
 	 */
@@ -116,12 +139,13 @@ public final class Magnet implements Serializable {
 	
 	/**
 	 * <p>判断是否支持下载</p>
-	 * <p>类型：{@link Type#BTIH}</p>
 	 * 
 	 * @return 是否支持下载
 	 */
 	public boolean supportDownload() {
-		return this.type == Type.BTIH && StringUtils.isNotEmpty(this.hash);
+		return
+			this.type == Type.BTIH &&
+			StringUtils.isNotEmpty(this.hash);
 	}
 	
 	/**
@@ -140,6 +164,24 @@ public final class Magnet implements Serializable {
 	 */
 	public void setDn(String dn) {
 		this.dn = dn;
+	}
+
+	/**
+	 * <p>获取文件大小</p>
+	 * 
+	 * @return 文件大小
+	 */
+	public Long getXl() {
+		return xl;
+	}
+
+	/**
+	 * <p>设置文件大小</p>
+	 * 
+	 * @param xl 文件大小
+	 */
+	public void setXl(Long xl) {
+		this.xl = xl;
 	}
 
 	/**

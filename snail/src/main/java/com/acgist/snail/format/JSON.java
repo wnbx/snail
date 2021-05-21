@@ -12,7 +12,7 @@ import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.StringUtils;
 
 /**
- * <p>JSON处理工具</p>
+ * <p>JSON工具</p>
  * 
  * @author acgist
  */
@@ -130,13 +130,10 @@ public final class JSON {
 	private Map<Object, Object> map;
 	/**
 	 * <p>是否使用懒加载</p>
-	 * <p>懒加载：反序列化JSON时，懒加载不会立即解析所有的JSON对象。</p>
+	 * <p>懒加载：反序列化JSON时不会立即解析所有的JSON对象</p>
 	 */
 	private static boolean lazy = true;
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private JSON() {
 	}
 	
@@ -193,7 +190,8 @@ public final class JSON {
 		} else {
 			throw new IllegalArgumentException("JSON格式错误：" + content);
 		}
-		content = content.substring(1, content.length() - 1); // 去掉首尾字符
+		// 去掉首尾字符
+		content = content.substring(1, content.length() - 1);
 		json.deserialize(content);
 		return json;
 	}
@@ -236,7 +234,7 @@ public final class JSON {
 	 * @param builder JSON字符串Builder
 	 */
 	private static final void serializeMap(Map<?, ?> map, StringBuilder builder) {
-		Objects.requireNonNull(map, "JSON序列化错误（Map为空）");
+		Objects.requireNonNull(map, "JSON序列化Map失败");
 		builder.append(JSON_MAP_PREFIX);
 		if(!map.isEmpty()) {
 			map.forEach((key, value) -> {
@@ -257,7 +255,7 @@ public final class JSON {
 	 * @param builder JSON字符串Builder
 	 */
 	private static final void serializeList(List<?> list, StringBuilder builder) {
-		Objects.requireNonNull(list, "JSON序列化错误（List为空）");
+		Objects.requireNonNull(list, "JSON序列化List失败");
 		builder.append(JSON_LIST_PREFIX);
 		if(!list.isEmpty()) {
 			list.forEach(value -> {
@@ -276,10 +274,10 @@ public final class JSON {
 	 * @param builder JSON字符串Builder
 	 */
 	private static final void serializeValue(Object object, StringBuilder builder) {
-		if(object instanceof String) {
+		if(object instanceof String string) {
 			builder
 				.append(JSON_STRING)
-				.append(escapeValue((String) object))
+				.append(escapeValue(string))
 				.append(JSON_STRING);
 		} else if(object instanceof Number) {
 			builder.append(object.toString());
@@ -287,10 +285,10 @@ public final class JSON {
 			builder.append(object.toString());
 		} else if(object instanceof JSON) {
 			builder.append(object.toString());
-		} else if(object instanceof Map) {
-			serializeMap((Map<?, ?>) object, builder);
-		} else if(object instanceof List) {
-			serializeList((List<?>) object, builder);
+		} else if(object instanceof Map<?, ?> map) {
+			serializeMap(map, builder);
+		} else if(object instanceof List<?> list) {
+			serializeList(list, builder);
 		} else if(object == null) {
 			builder.append(JSON_NULL);
 		} else {
@@ -364,17 +362,19 @@ public final class JSON {
 	private static final Object deserializeValue(AtomicInteger index, String content) {
 		char value;
 		String hexValue;
-		int jsonIndex = 0; // JSON层级
-		int stringIndex = 0; // 字符串层级
+		// JSON层级
+		int jsonIndex = 0;
+		// String层级
+		int stringIndex = 0;
 		final int length = content.length();
 		final StringBuilder builder = new StringBuilder();
 		do {
 			value = content.charAt(index.get());
 			if(value == JSON_STRING) {
 				if(stringIndex == 0) {
-					stringIndex++; // 层级增加
+					stringIndex++;
 				} else {
-					stringIndex--; // 层级减少
+					stringIndex--;
 				}
 			} else if(value == JSON_MAP_PREFIX || value == JSON_LIST_PREFIX) {
 				jsonIndex++;
@@ -390,40 +390,29 @@ public final class JSON {
 			if (value == JSON_ESCAPE) {
 				value = content.charAt(index.incrementAndGet());
 				switch (value) {
-				case 'b':
-					builder.append('\b');
-					break;
-				case 't':
-					builder.append('\t');
-					break;
-				case 'n':
-					builder.append('\n');
-					break;
-				case 'f':
-					builder.append('\f');
-					break;
-				case 'r':
-					builder.append('\r');
-					break;
-				case '"':
-				case JSON_ESCAPE:
-					// 如果存在JSON对象里面保留转义字符
-					if(jsonIndex != 0) {
-						builder.append(JSON_ESCAPE);
+					case 'b' -> builder.append('\b');
+					case 't' -> builder.append('\t');
+					case 'n' -> builder.append('\n');
+					case 'f' -> builder.append('\f');
+					case 'r' -> builder.append('\r');
+					case '"', JSON_ESCAPE -> {
+						// 如果存在JSON对象里面保留转义字符
+						if(jsonIndex != 0) {
+							builder.append(JSON_ESCAPE);
+						}
+						builder.append(value);
 					}
-					builder.append(value);
-					break;
-				case 'u':
-					// Unicode
-					hexValue = content.substring(index.get() + 1, index.get() + 5);
-					builder.append((char) Integer.parseInt(hexValue, 16));
-					index.addAndGet(4);
-					break;
-				default:
-					// 未知转义类型保留转义字符
-					builder.append(JSON_ESCAPE);
-					builder.append(value);
-					break;
+					case 'u' -> {
+						// Unicode
+						hexValue = content.substring(index.get() + 1, index.get() + 5);
+						builder.append((char) Integer.parseInt(hexValue, 16));
+						index.addAndGet(4);
+					}
+					default -> {
+						// 未知转义类型保留转义字符
+						builder.append(JSON_ESCAPE);
+						builder.append(value);
+					}
 				}
 			} else {
 				builder.append(value);
@@ -443,14 +432,14 @@ public final class JSON {
 	private static final Object deserializeValue(String content) {
 		final String value = content.trim();
 		final int length = value.length();
-		char first = '0'; // 首字符
-		char last = '0'; // 尾字符
+		char first = '0';
+		char last = '0';
 		if(length > 1) {
 			first = value.charAt(0);
 			last = value.charAt(length - 1);
 		}
 		if(first == JSON_STRING && last == JSON_STRING) {
-			return value.substring(1, length - 1); // 去掉引号
+			return value.substring(1, length - 1);
 		} else if(
 			(first == JSON_MAP_PREFIX && last == JSON_MAP_SUFFIX) ||
 			(first == JSON_LIST_PREFIX && last == JSON_LIST_SUFFIX)
@@ -477,12 +466,15 @@ public final class JSON {
 	 * @param content 原始字符串
 	 * 
 	 * @return 转义字符串
+	 * 
+	 * @see #CHARS
+	 * @see #CHARS_ESCAPE
 	 */
 	private static final StringBuilder escapeValue(String content) {
 		final char[] chars = content.toCharArray();
 		final StringBuilder builder = new StringBuilder();
 		for (char value : chars) {
-			// 参考JSON特殊字符
+			// #CHARS
 			if(value > 0x1F && value != 0x22 && value != 0x5C) {
 				builder.append(value);
 			} else {
@@ -498,6 +490,9 @@ public final class JSON {
 	 * @param content 转义字符串
 	 * 
 	 * @return 原始字符串
+	 * 
+	 * @see #CHARS
+	 * @see #CHARS_ESCAPE
 	 */
 	private static final String unescapeValue(String content) {
 		if(content.charAt(0) == JSON_ESCAPE) {
@@ -528,7 +523,6 @@ public final class JSON {
 	
 	/**
 	 * <p>获取JSON对象</p>
-	 * <p>如果对象是JSON对象直接返回，如果是字符串转为JSON对象。</p>
 	 * 
 	 * @param key 属性名称
 	 * 
@@ -538,16 +532,16 @@ public final class JSON {
 		final Object value = this.get(key);
 		if(value == null) {
 			return null;
-		} else if(value instanceof JSON) {
-			return (JSON) value;
-		} else if(value instanceof String) {
-			return JSON.ofString((String) value);
-		} else if(value instanceof Map) {
-			final Map<Object, Object> valueMap = ((Map<?, ?>) value).entrySet().stream()
+		} else if(value instanceof JSON json) {
+			return json;
+		} else if(value instanceof String string) {
+			return JSON.ofString(string);
+		} else if(value instanceof Map<?, ?> map) {
+			final Map<Object, Object> valueMap = map.entrySet().stream()
 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 			return JSON.ofMap(valueMap);
-		} else if(value instanceof List) {
-			final List<Object> valueList = ((List<?>) value).stream()
+		} else if(value instanceof List<?> list) {
+			final List<Object> valueList = list.stream()
 				.collect(Collectors.toList());
 			return JSON.ofList(valueList);
 		} else {

@@ -32,24 +32,22 @@ public abstract class MultifileDownloader extends Downloader {
 	
 	@Override
 	public void open() throws NetException, DownloadException {
-		// 创建文件目录：防止删除目录导致任务下载失败
-		FileUtils.buildFolder(this.taskSession.getFile(), false);
+		// 新建文件目录：防止删除目录导致任务下载失败
+		FileUtils.buildFolder(this.taskSession.getFile());
 		this.loadDownload();
 	}
 
 	@Override
 	public void download() throws DownloadException {
 		while(this.downloadable()) {
-			// 添加下载锁
 			synchronized (this.downloadLock) {
 				try {
 					// 防止过长时间下载（失败时间等待）：验证下载数据是否变化判断任务是否失败
 					this.downloadLock.wait(Long.MAX_VALUE);
 				} catch (InterruptedException e) {
-					LOGGER.debug("线程等待异常", e);
 					Thread.currentThread().interrupt();
+					LOGGER.debug("线程等待异常", e);
 				}
-				// 完成状态必须在同步块中检测
 				this.completed = this.checkCompleted();
 			}
 		}
@@ -64,7 +62,7 @@ public abstract class MultifileDownloader extends Downloader {
 	}
 	
 	/**
-	 * <p>开始下载</p>
+	 * <p>加载下载</p>
 	 * 
 	 * @throws DownloadException 下载异常
 	 */

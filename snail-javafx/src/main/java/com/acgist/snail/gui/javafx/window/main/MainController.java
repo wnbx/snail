@@ -1,6 +1,5 @@
 package com.acgist.snail.gui.javafx.window.main;
 
-import java.io.File;
 import java.net.URL;
 import java.util.List;
 import java.util.ResourceBundle;
@@ -25,6 +24,7 @@ import com.acgist.snail.gui.javafx.window.build.BuildWindow;
 import com.acgist.snail.gui.javafx.window.setting.SettingWindow;
 import com.acgist.snail.gui.javafx.window.torrent.TorrentWindow;
 import com.acgist.snail.pojo.ITaskSession;
+import com.acgist.snail.protocol.Protocol;
 import com.acgist.snail.protocol.Protocol.Type;
 import com.acgist.snail.utils.FileUtils;
 import com.acgist.snail.utils.StringUtils;
@@ -36,10 +36,8 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableColumn;
@@ -59,50 +57,42 @@ import javafx.util.Callback;
  * 
  * @author acgist
  */
-public final class MainController extends Controller implements Initializable {
+public final class MainController extends Controller {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainController.class);
 	
 	/**
-	 * <p>任务列表显示类型</p>
+	 * <p>任务列表显示筛选</p>
 	 * 
 	 * @author acgist
 	 */
 	public enum Filter {
 		
-		/** 显示所有任务 */
+		/**
+		 * <p>显示所有任务</p>
+		 */
 		ALL,
-		/** 显示正在下载任务 */
+		/**
+		 * <p>显示正在下载任务</p>
+		 */
 		DOWNLOAD,
-		/** 显示下载完成任务 */
+		/**
+		 * <p>显示下载完成任务</p>
+		 */
 		COMPLETED;
 		
 	}
 	
-	/**
-	 * <p>任务列表显示类型</p>
-	 */
-	private Filter filter = Filter.ALL;
-	
 	@FXML
 	private BorderPane root;
-	
-	@FXML
-	private HBox header;
-	@FXML
-	private HBox footer;
 	@FXML
 	private HBox filters;
 	@FXML
 	private HBox statuses;
 	@FXML
-	private Label downloadStatus;
-	@FXML
-	private Label downloadBuffer;
+	private Label uploadBuffer;
 	@FXML
 	private Label uploadStatus;
-	@FXML
-	private Label uploadBuffer;
 	@FXML
 	private TableView<ITaskSession> taskTable;
 	@FXML
@@ -115,17 +105,19 @@ public final class MainController extends Controller implements Initializable {
 	private TableColumn<ITaskSession, String> createDate;
 	@FXML
 	private TableColumn<ITaskSession, String> endDate;
-
+	/**
+	 * <p>任务列表显示筛选</p>
+	 */
+	private Filter filter = Filter.ALL;
+	
 	@Override
 	public void initialize(URL location, ResourceBundle resources) {
-		// 设置状态符号
-		this.downloadStatus.setText(SnailIcon.AS_CLOUD_DOWNLOAD.toString());
+		// 设置上传图标
 		this.uploadStatus.setText(SnailIcon.AS_CLOUD_UPLOAD.toString());
+		this.uploadStatus.setTextFill(Themes.getColor());
 		// 设置多选
 		this.taskTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-		// 设置无数据时提示内容
-		final var placeholder = this.buildPlaceholder();
-		this.taskTable.setPlaceholder(placeholder);
+		this.taskTable.setPlaceholder(this.buildPlaceholder());
 		// 设置列
 		this.taskCell(this.name, Pos.CENTER_LEFT, true, true, this.taskTable.widthProperty().multiply(3D).divide(10D));
 		this.taskCell(this.status, Pos.CENTER, false, false, this.taskTable.widthProperty().multiply(1D).divide(10D));
@@ -147,21 +139,17 @@ public final class MainController extends Controller implements Initializable {
 	}
 
 	/**
-	 * <p>创建没有下载任务时的提示信息</p>
+	 * <p>新建没有下载任务时的提示信息</p>
 	 * 
 	 * @return 提示信息
 	 */
 	private Node buildPlaceholder() {
-		// 颜色
 		final var color = Themes.COLOR_GRAY;
-		// 图标
 		final var icon = SnailIcon.AS_DOWNLOAD3.iconLabel();
-		icon.getStyleClass().add(Themes.CLASS_TASK_EMPTY); // 特殊样式
-		icon.setTextFill(color);
-		// 文本
 		final var text = new Text("点击新建按钮或者拖动下载链接、种子文件开始下载");
 		text.setFill(color);
-		// 提示信息
+		icon.setTextFill(color);
+		Themes.applyClass(icon, Themes.CLASS_TASK_EMPTY);
 		final var placeholder = new VBox(icon, text);
 		placeholder.setAlignment(Pos.CENTER);
 		return placeholder;
@@ -278,7 +266,7 @@ public final class MainController extends Controller implements Initializable {
 					return true;
 				}
 			})
-			.forEach(session -> obs.add(session));
+			.forEach(obs::add);
 		this.taskTable.setItems(obs);
 	}
 	
@@ -287,14 +275,10 @@ public final class MainController extends Controller implements Initializable {
 	 * <p>不设置表格数据，只刷新任务状态。</p>
 	 */
 	public void refreshTaskStatus() {
-		this.taskTable.refresh(); // 刷新Table
-		// 刷新下载、上传速度
-		Platform.runLater(() -> {
-			final long downloadSpeed = StatisticsContext.getInstance().downloadSpeed();
-			this.downloadBuffer.setText(FileUtils.formatSize(downloadSpeed) + "/S"); // 下载速度
-			final long uploadSpeed = StatisticsContext.getInstance().uploadSpeed();
-			this.uploadBuffer.setText(FileUtils.formatSize(uploadSpeed) + "/S"); // 上传速度
-		});
+		// 刷新Table
+		this.taskTable.refresh();
+		// 上传速度
+		Platform.runLater(() -> this.uploadBuffer.setText(FileUtils.formatSpeed(StatisticsContext.getInstance().uploadSpeed())));
 	}
 	
 	/**
@@ -315,6 +299,17 @@ public final class MainController extends Controller implements Initializable {
 	public boolean hasSelected() {
 		return !this.selected().isEmpty();
 	}
+
+	/**
+	 * <p>获取选中BT任务列表</p>
+	 * 
+	 * @return 选中BT任务列表
+	 */
+	public List<ITaskSession> selectedTorrent() {
+		return this.taskTable.getSelectionModel().getSelectedItems().stream()
+			.filter(session -> session.getType() == Protocol.Type.TORRENT)
+			.collect(Collectors.toList());
+	}
 	
 	/**
 	 * <p>判断是否选中BT任务</p>
@@ -322,22 +317,14 @@ public final class MainController extends Controller implements Initializable {
 	 * @return 是否选中BT任务
 	 */
 	public boolean hasSelectedTorrent() {
-		return this.selected().stream()
-			.anyMatch(session -> session.getType() == Type.TORRENT);
+		return !this.selectedTorrent().isEmpty();
 	}
 
 	/**
 	 * <p>开始选中任务</p>
 	 */
 	public void start() {
-		this.selected().forEach(session -> {
-			try {
-				session.start();
-			} catch (DownloadException e) {
-				LOGGER.error("开始下载任务异常", e);
-				Alerts.warn("下载失败", e.getMessage());
-			}
-		});
+		this.selected().forEach(this::start);
 	}
 	
 	/**
@@ -355,7 +342,7 @@ public final class MainController extends Controller implements Initializable {
 			return;
 		}
 		final var optional = Alerts.build("删除确认", "删除选中任务？", GuiContext.MessageType.CONFIRM);
-		if(optional.isPresent() && optional.get() == ButtonType.OK) {
+		if(Alerts.ok(optional)) {
 			this.selected().forEach(ITaskSession::delete);
 		}
 	}
@@ -370,9 +357,10 @@ public final class MainController extends Controller implements Initializable {
 	 * @param widthBinding 宽度绑定
 	 */
 	private void taskCell(TableColumn<ITaskSession, String> column, Pos pos, boolean icon, boolean tooltip, DoubleBinding widthBinding) {
+		// 禁止修改大小
+		column.setResizable(false);
 		column.prefWidthProperty().bind(widthBinding);
-		column.setResizable(false); // 禁止修改大小
-		column.setCellFactory(tableColumn -> new TaskCell(pos, icon, tooltip));
+		column.setCellFactory(tableColumn -> new TaskTableCell(pos, icon, tooltip));
 	}
 	
 	/**
@@ -380,8 +368,10 @@ public final class MainController extends Controller implements Initializable {
 	 */
 	private Callback<TableView<ITaskSession>, TableRow<ITaskSession>> rowFactory = tableView -> {
 		final TableRow<ITaskSession> row = new TableRow<>();
-		row.setOnMouseClicked(this.rowClickAction); // 左键双击
-		row.setContextMenu(TaskMenu.getInstance()); // 右键菜单
+		// 右键菜单
+		row.setContextMenu(TaskMenu.getInstance());
+		// 左键双击
+		row.setOnMouseClicked(this.rowClickAction);
 		return row;
 	};
 	
@@ -389,7 +379,8 @@ public final class MainController extends Controller implements Initializable {
 	 * <p>双击事件</p>
 	 */
 	private EventHandler<MouseEvent> rowClickAction = event -> {
-		if(event.getClickCount() == DOUBLE_CLICK_COUNT) { // 双击
+		if(event.getClickCount() == DOUBLE_CLICK_COUNT) {
+			// 双击
 			final var row = (TableRow<?>) event.getSource();
 			final var session = (ITaskSession) row.getItem();
 			if(session == null) {
@@ -402,23 +393,31 @@ public final class MainController extends Controller implements Initializable {
 					TorrentWindow.getInstance().show(session);
 				} else {
 					// 其他：打开下载文件
-					// TODO：文件可能存在病毒
-					Desktops.open(new File(session.getFile()));
+					Desktops.open(session.downloadFile());
 				}
 			} else if(session.statusRunning()) {
 				// 处于下载线程：暂停下载
 				session.pause();
 			} else {
 				// 其他：开始下载
-				try {
-					session.start();
-				} catch (DownloadException e) {
-					LOGGER.error("开始下载任务异常", e);
-					Alerts.warn("下载失败", e.getMessage());
-				}
+				this.start(session);
 			}
 		}
 	};
+	
+	/**
+	 * <p>开始任务</p>
+	 * 
+	 * @param session 任务信息
+	 */
+	private void start(ITaskSession session) {
+		try {
+			session.start();
+		} catch (DownloadException e) {
+			LOGGER.error("开始下载任务异常", e);
+			Alerts.warn("下载失败", e.getMessage());
+		}
+	}
 	
 	/**
 	 * <p>拖入文件事件（显示）</p>

@@ -61,6 +61,8 @@ public final class SystemContext implements IContext {
 		private final String[] osNames;
 
 		/**
+		 * <p>系统类型</p>
+		 * 
 		 * @param osNames 系统名称
 		 */
 		private SystemType(String ... osNames) {
@@ -68,9 +70,9 @@ public final class SystemContext implements IContext {
 		}
 
 		/**
-		 * <p>获取当前系统类型</p>
+		 * <p>获取系统类型</p>
 		 * 
-		 * @return 当前系统类型
+		 * @return 系统类型
 		 */
 		public static final SystemType local() {
 			final String osName = SystemContext.osName();
@@ -81,7 +83,7 @@ public final class SystemContext implements IContext {
 					}
 				}
 			}
-			LOGGER.warn("未知系统：{}", osName);
+			LOGGER.warn("未知系统类型：{}", osName);
 			return null;
 		}
 		
@@ -92,9 +94,6 @@ public final class SystemContext implements IContext {
 	 */
 	private final String osName;
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private SystemContext() {
 		this.osName = System.getProperty("os.name");
 	}
@@ -104,7 +103,6 @@ public final class SystemContext implements IContext {
 	 */
 	public static final void gc() {
 		LOGGER.info("整理系统内存");
-		LOGGER.info("垃圾回收（GC）");
 		System.gc();
 	}
 	
@@ -113,6 +111,9 @@ public final class SystemContext implements IContext {
 	 */
 	public static final void info() {
 		final var runtime = Runtime.getRuntime();
+		final String freeMemory = FileUtils.formatSize(runtime.freeMemory());
+		final String totalMemory = FileUtils.formatSize(runtime.totalMemory());
+		final String maxMemory = FileUtils.formatSize(runtime.maxMemory());
 		LOGGER.info("操作系统名称：{}", System.getProperty("os.name"));
 		LOGGER.info("操作系统架构：{}", System.getProperty("os.arch"));
 		LOGGER.info("操作系统版本：{}", System.getProperty("os.version"));
@@ -121,9 +122,6 @@ public final class SystemContext implements IContext {
 		LOGGER.info("Java主目录：{}", System.getProperty("java.home"));
 		LOGGER.info("Java库目录：{}", System.getProperty("java.library.path"));
 		LOGGER.info("虚拟机名称：{}", System.getProperty("java.vm.name"));
-		final String freeMemory = FileUtils.formatSize(runtime.freeMemory());
-		final String totalMemory = FileUtils.formatSize(runtime.totalMemory());
-		final String maxMemory = FileUtils.formatSize(runtime.maxMemory());
 		LOGGER.info("虚拟机空闲内存：{}", freeMemory);
 		LOGGER.info("虚拟机已用内存：{}", totalMemory);
 		LOGGER.info("虚拟机最大内存：{}", maxMemory);
@@ -138,7 +136,6 @@ public final class SystemContext implements IContext {
 	 * @return Snail
 	 */
 	public static final Snail build() {
-		LOGGER.info("系统初始化");
 		return SnailBuilder.newBuilder()
 			.loadTask()
 			.application()
@@ -155,7 +152,7 @@ public final class SystemContext implements IContext {
 	public static final void shutdown() {
 		if(Snail.available()) {
 			SystemThreadContext.submit(() -> {
-				LOGGER.info("系统关闭中...");
+				LOGGER.info("系统关闭中");
 				GuiContext.getInstance().hide();
 				Snail.shutdown();
 				TcpClient.shutdown();
@@ -167,7 +164,7 @@ public final class SystemContext implements IContext {
 				LoggerContext.shutdown();
 			});
 		} else {
-			GuiContext.getInstance().alert("关闭提示", "系统正在关闭中...");
+			GuiContext.getInstance().alert("关闭提示", "系统关闭中");
 		}
 	}
 	
@@ -194,10 +191,10 @@ public final class SystemContext implements IContext {
 				.get()
 				.responseToString();
 			final JSON json = JSON.ofString(body);
-			// 最新版本：v1.0.0
+			// 最新版本：1.0.0
 			final String latestVersion = json.getString("tag_name");
 			LOGGER.debug("版本信息：{}-{}", version, latestVersion);
-			return latestVersion.substring(1).equals(version);
+			return latestVersion.equals(version);
 		} catch (NetException e) {
 			LOGGER.error("获取版本信息异常", e);
 		}

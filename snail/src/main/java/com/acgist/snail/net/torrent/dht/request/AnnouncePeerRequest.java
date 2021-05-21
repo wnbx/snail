@@ -1,6 +1,7 @@
 package com.acgist.snail.net.torrent.dht.request;
 
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,12 +17,11 @@ import com.acgist.snail.net.torrent.dht.DhtRequest;
 import com.acgist.snail.net.torrent.dht.DhtResponse;
 import com.acgist.snail.net.torrent.dht.response.AnnouncePeerResponse;
 import com.acgist.snail.pojo.session.TorrentSession;
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>声明Peer</p>
- * <p>声明当前节点作为Peer进行下载和上传</p>
+ * <p>声明当前节点作为Peer</p>
  * 
  * @author acgist
  */
@@ -34,7 +34,7 @@ public final class AnnouncePeerRequest extends DhtRequest {
 	}
 	
 	/**
-	 * <p>创建请求</p>
+	 * <p>新建请求</p>
 	 * 
 	 * @param token token
 	 * @param infoHash InfoHash
@@ -60,7 +60,7 @@ public final class AnnouncePeerRequest extends DhtRequest {
 	public static final AnnouncePeerResponse execute(DhtRequest request) {
 		final byte[] token = request.getBytes(DhtConfig.KEY_TOKEN);
 		// 验证Token
-		if(!ArrayUtils.equals(token, DhtContext.getInstance().token())) {
+		if(!Arrays.equals(token, DhtContext.getInstance().token())) {
 			return AnnouncePeerResponse.newInstance(DhtResponse.buildErrorResponse(request.getT(), ErrorCode.CODE_203.code(), "Token错误"));
 		}
 		final byte[] infoHash = request.getBytes(DhtConfig.KEY_INFO_HASH);
@@ -93,42 +93,6 @@ public final class AnnouncePeerRequest extends DhtRequest {
 			LOGGER.debug("声明Peer种子信息不存在：{}", infoHashHex);
 		}
 		return AnnouncePeerResponse.newInstance(request);
-	}
-	
-	/**
-	 * <p>获取端口</p>
-	 * 
-	 * @return 端口
-	 */
-	public Integer getPort() {
-		return this.getInteger(DhtConfig.KEY_PORT);
-	}
-	
-	/**
-	 * <p>获取Token</p>
-	 * 
-	 * @return Token
-	 */
-	public byte[] getToken() {
-		return this.getBytes(DhtConfig.KEY_TOKEN);
-	}
-	
-	/**
-	 * <p>获取InfoHash</p>
-	 * 
-	 * @return InfoHash
-	 */
-	public byte[] getInfoHash() {
-		return this.getBytes(DhtConfig.KEY_INFO_HASH);
-	}
-	
-	/**
-	 * <p>获取ImpliedPort</p>
-	 * 
-	 * @return ImpliedPort
-	 */
-	public Integer getImpliedPort() {
-		return this.getInteger(DhtConfig.KEY_IMPLIED_PORT);
 	}
 
 }

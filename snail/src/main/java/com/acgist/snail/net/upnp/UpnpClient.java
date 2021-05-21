@@ -28,18 +28,18 @@ public final class UpnpClient extends UdpClient<UpnpMessageHandler> {
 	 * @param socketAddress 地址
 	 */
 	private UpnpClient(InetSocketAddress socketAddress) {
-		super("UPNP Client", new UpnpMessageHandler(), socketAddress);
+		super("UPNP Client", new UpnpMessageHandler(socketAddress));
 	}
 	
 	public static final UpnpClient newInstance() {
-		return new UpnpClient(NetUtils.buildSocketAddress(UpnpServer.UPNP_HOST, UpnpServer.UPNP_PORT));
+		return new UpnpClient(NetUtils.buildSocketAddress(UpnpServer.upnpHost(), UpnpServer.UPNP_PORT));
 	}
-
+	
 	@Override
 	public boolean open() {
 		return this.open(UpnpServer.getInstance().channel());
 	}
-	
+
 	/**
 	 * <p>发送M-SEARCH消息</p>
 	 */
@@ -53,14 +53,14 @@ public final class UpnpClient extends UdpClient<UpnpMessageHandler> {
 	}
 	
 	/**
-	 * <p>创建M-SEARCH消息</p>
+	 * <p>新建M-SEARCH消息</p>
 	 * 
 	 * @return 消息
 	 */
 	private String buildMSearch() {
 		final HeaderWrapper builder = HeaderWrapper.newBuilder(PROTOCOL);
 		builder
-			.header("HOST", UpnpServer.UPNP_HOST + ":" + UpnpServer.UPNP_PORT)
+			.header("HOST", UpnpServer.upnpHost() + ":" + UpnpServer.UPNP_PORT)
 			.header("ST", UpnpServer.UPNP_ROOT_DEVICE)
 			.header("MAN", "\"ssdp:discover\"")
 			.header("MX", "3");

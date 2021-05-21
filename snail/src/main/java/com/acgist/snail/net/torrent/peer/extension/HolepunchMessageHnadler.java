@@ -55,7 +55,7 @@ public final class HolepunchMessageHnadler extends ExtensionTypeMessageHandler {
 	}
 	
 	/**
-	 * <p>创建holepunch扩展协议代理</p>
+	 * <p>新建holepunch扩展协议代理</p>
 	 * 
 	 * @param peerSession Peer信息
 	 * @param torrentSession BT任务信息
@@ -97,19 +97,13 @@ public final class HolepunchMessageHnadler extends ExtensionTypeMessageHandler {
 		}
 		LOGGER.debug("处理holepunch消息：{}", holepunchType);
 		switch (holepunchType) {
-		case RENDEZVOUS:
-			this.onRendezvous(host, port);
-			break;
-		case CONNECT:
-			this.onConnect(host, port);
-			break;
-		case ERROR:
-			final int errorCode = buffer.getInt();
-			this.onError(host, port, errorCode);
-			break;
-		default:
-			LOGGER.warn("处理holepunch消息错误（类型未适配）：{}", holepunchType);
-			break;
+			case RENDEZVOUS -> this.onRendezvous(host, port);
+			case CONNECT -> this.onConnect(host, port);
+			case ERROR -> {
+				final int errorCode = buffer.getInt();
+				this.onError(host, port, errorCode);
+			}
+			default -> LOGGER.warn("处理holepunch消息错误（类型未适配）：{}", holepunchType);
 		}
 	}
 	
@@ -134,8 +128,7 @@ public final class HolepunchMessageHnadler extends ExtensionTypeMessageHandler {
 	 */
 	private void onRendezvous(String host, int port) {
 		LOGGER.debug("处理holepunch消息-rendezvous：{}-{}", host, port);
-		final String extIp = SystemConfig.getExternalIpAddress();
-		if(StringUtils.equals(host, extIp)) {
+		if(StringUtils.equals(host, SystemConfig.getExternalIPAddress())) {
 			LOGGER.debug("处理holepunch消息-rendezvous失败：目标属于中继");
 			this.error(host, port, HolepunchErrorCode.CODE_04);
 			return;
@@ -249,7 +242,7 @@ public final class HolepunchMessageHnadler extends ExtensionTypeMessageHandler {
 	}
 	
 	/**
-	 * <p>创建消息</p>
+	 * <p>新建消息</p>
 	 * 
 	 * @param type 消息类型
 	 * @param host Peer地址
@@ -264,12 +257,12 @@ public final class HolepunchMessageHnadler extends ExtensionTypeMessageHandler {
 	}
 	
 	/**
-	 * <p>创建消息</p>
+	 * <p>新建消息</p>
 	 * 
 	 * @param type 消息类型
 	 * @param host Peer地址
 	 * @param port Peer端口
-	 * @param errorCode 错误编码（null：没有错误消息）
+	 * @param errorCode 错误编码
 	 * 
 	 * @return 消息
 	 * 

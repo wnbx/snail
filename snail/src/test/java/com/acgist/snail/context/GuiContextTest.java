@@ -13,43 +13,24 @@ import org.junit.jupiter.api.Test;
 import com.acgist.snail.Snail;
 import com.acgist.snail.context.GuiContext.MessageType;
 import com.acgist.snail.format.BEncodeEncoder;
-import com.acgist.snail.gui.event.AlertEvent;
-import com.acgist.snail.gui.event.BuildEvent;
-import com.acgist.snail.gui.event.ExitEvent;
-import com.acgist.snail.gui.event.HideEvent;
-import com.acgist.snail.gui.event.NoticeEvent;
-import com.acgist.snail.gui.event.RefreshTaskListEvent;
-import com.acgist.snail.gui.event.RefreshTaskStatusEvent;
-import com.acgist.snail.gui.event.ResponseEvent;
-import com.acgist.snail.gui.event.ShowEvent;
-import com.acgist.snail.gui.event.TorrentEvent;
+import com.acgist.snail.gui.event.GuiEventMessage;
 import com.acgist.snail.net.application.ApplicationClient;
-import com.acgist.snail.pojo.message.ApplicationMessage;
 import com.acgist.snail.pojo.message.ApplicationMessage.Type;
 import com.acgist.snail.utils.Performance;
 
-public class GuiContextTest extends Performance {
+class GuiContextTest extends Performance {
 
 	/**
 	 * <p>测试环境客户端和服务端使用同一套事件</p>
 	 * <p>客户端收到事件也会发出通知所以会提示：发送扩展GUI消息失败</p>
 	 */
 	@BeforeAll
-	public static final void registerEvent() {
-		GuiContext.register(ShowEvent.getInstance());
-		GuiContext.register(HideEvent.getInstance());
-		GuiContext.register(ExitEvent.getInstance());
-		GuiContext.register(BuildEvent.getInstance());
-		GuiContext.register(AlertEvent.getInstance());
-		GuiContext.register(NoticeEvent.getInstance());
-		GuiContext.register(TorrentEvent.getInstance());
-		GuiContext.register(ResponseEvent.getInstance());
-		GuiContext.register(RefreshTaskListEvent.getInstance());
-		GuiContext.register(RefreshTaskStatusEvent.getInstance());
+	static final void registerEvent() {
+		GuiContext.registerAdapter();
 	}
 
 	@Test
-	public void testEvent() {
+	void testEvent() {
 		final var guiContext = GuiContext.getInstance();
 		guiContext.alert("acgist", "acgist");
 		guiContext.notice("acgist", "acgist");
@@ -65,7 +46,7 @@ public class GuiContextTest extends Performance {
 	}
 	
 	@Test
-	public void testExtend() {
+	void testExtend() {
 		if(SKIP_COSTED) {
 			this.log("跳过testExtend测试");
 			return;
@@ -84,7 +65,7 @@ public class GuiContextTest extends Performance {
 	}
 	
 	@Test
-	public void testSocket() {
+	void testSocket() {
 		if(SKIP_COSTED) {
 			this.log("跳过testSocket测试");
 			return;
@@ -94,19 +75,35 @@ public class GuiContextTest extends Performance {
 		final ApplicationClient client = ApplicationClient.newInstance();
 		client.connect();
 		// 注册GUI
-		client.send(ApplicationMessage.message(Type.GUI, message));
+		client.send(Type.GUI.build(message));
 		assertNotNull(client);
 		while ((message = scanner.nextLine()) != null) {
 			if(message.equalsIgnoreCase(Type.TEXT.name())) {
-				client.send(ApplicationMessage.message(Type.TEXT, message));
+				client.send(Type.TEXT.build(message));
 			} else if(message.equalsIgnoreCase(Type.CLOSE.name())) {
-				client.send(ApplicationMessage.message(Type.CLOSE, message));
+				client.send(Type.CLOSE.build(message));
 				client.close();
 				break;
 			} else if(message.equalsIgnoreCase(Type.NOTIFY.name())) {
-				client.send(ApplicationMessage.message(Type.NOTIFY, message));
+				client.send(Type.NOTIFY.build(message));
+			} else if(message.equalsIgnoreCase(Type.ALERT.name())) {
+				final Map<String, String> map = Map.of(
+					GuiEventMessage.MESSAGE_TYPE, GuiContext.MessageType.INFO.name(),
+					GuiEventMessage.MESSAGE_TITLE, "测试",
+					GuiEventMessage.MESSAGE_MESSAGE, message
+				);
+				final String body = BEncodeEncoder.encodeMapString(map);
+				client.send(Type.ALERT.build(body));
+			} else if(message.equalsIgnoreCase(Type.NOTICE.name())) {
+				final Map<String, String> map = Map.of(
+					GuiEventMessage.MESSAGE_TYPE, GuiContext.MessageType.INFO.name(),
+					GuiEventMessage.MESSAGE_TITLE, "测试",
+					GuiEventMessage.MESSAGE_MESSAGE, message
+				);
+				final String body = BEncodeEncoder.encodeMapString(map);
+				client.send(Type.NOTICE.build(body));
 			} else if(message.equalsIgnoreCase(Type.SHUTDOWN.name())) {
-				client.send(ApplicationMessage.message(Type.SHUTDOWN, message));
+				client.send(Type.SHUTDOWN.build(message));
 				client.close();
 				break;
 			} else if(message.equalsIgnoreCase(Type.TASK_NEW.name())) {
@@ -114,18 +111,18 @@ public class GuiContextTest extends Performance {
 //				map.put("url", "下载地址或者种子文件路径");
 				// BT任务
 //				map.put("files", "B编码下载文件列表");
-				map.put("url", "https://mirror.bit.edu.cn/apache/tomcat/tomcat-9/v9.0.41/bin/apache-tomcat-9.0.41.zip");
-				client.send(ApplicationMessage.message(Type.TASK_NEW, BEncodeEncoder.encodeMapString(map)));
+				map.put("url", "https://mirrors.bfsu.edu.cn/apache/tomcat/tomcat-10/v10.0.4/bin/apache-tomcat-10.0.4.zip");
+				client.send(Type.TASK_NEW.build(BEncodeEncoder.encodeMapString(map)));
 			} else if(message.equalsIgnoreCase(Type.TASK_LIST.name())) {
-				client.send(ApplicationMessage.message(Type.TASK_LIST, message));
+				client.send(Type.TASK_LIST.build(message));
 			} else if(message.equalsIgnoreCase(Type.TASK_START.name())) {
-				client.send(ApplicationMessage.message(Type.TASK_START, "37f48162-d306-4fff-b161-f1231a3f7e48"));
+				client.send(Type.TASK_START.build("37f48162-d306-4fff-b161-f1231a3f7e48"));
 			} else if(message.equalsIgnoreCase(Type.TASK_PAUSE.name())) {
-				client.send(ApplicationMessage.message(Type.TASK_PAUSE, "37f48162-d306-4fff-b161-f1231a3f7e48"));
+				client.send(Type.TASK_PAUSE.build("37f48162-d306-4fff-b161-f1231a3f7e48"));
 			} else if(message.equalsIgnoreCase(Type.TASK_DELETE.name())) {
-				client.send(ApplicationMessage.message(Type.TASK_DELETE, "37f48162-d306-4fff-b161-f1231a3f7e48"));
+				client.send(Type.TASK_DELETE.build("37f48162-d306-4fff-b161-f1231a3f7e48"));
 			} else {
-				client.send(ApplicationMessage.text(message));
+				client.send(Type.TEXT.build(message));
 			}
 		}
 		scanner.close();

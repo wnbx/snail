@@ -14,14 +14,14 @@ import com.acgist.snail.pojo.session.TaskSession;
 import com.acgist.snail.utils.Performance;
 import com.acgist.snail.utils.ThreadUtils;
 
-public class LocalServiceDiscoveryTest extends Performance {
+class LocalServiceDiscoveryTest extends Performance {
 
 	private String hashA = "28b5e72737f183cb36182fcc8991d5cbf7ce627c";
 	private String hashB = "28b5e72737f183cb36182fcc8991d5cbf7ce6271";
 	private String hashC = "28b5e72737f183cb36182fcc8991d5cbf7ce6272";
 	
 	@Test
-	public void testServer() throws DownloadException {
+	void testServer() throws DownloadException {
 		if(SKIP_COSTED) {
 			this.log("跳过testServer测试");
 			return;
@@ -32,14 +32,14 @@ public class LocalServiceDiscoveryTest extends Performance {
 		entity.setSize(0L);
 		TorrentContext.getInstance().newTorrentSession(this.hashA, null).magnet(TaskSession.newInstance(entity));
 		assertNotNull(server);
-		while(!PeerContext.getInstance().hasPeerSession(this.hashA)) {
+		while(!PeerContext.getInstance().isNotEmpty(this.hashA)) {
 			ThreadUtils.sleep(1000);
 		}
-		assertTrue(PeerContext.getInstance().hasPeerSession(this.hashA));
+		assertTrue(PeerContext.getInstance().isNotEmpty(this.hashA));
 	}
 	
 	@Test
-	public void testClient() throws NetException {
+	void testClient() throws NetException {
 		final var client = LocalServiceDiscoveryClient.newInstance();
 		client.localSearch(this.hashC);
 		client.localSearch(this.hashA, this.hashB);

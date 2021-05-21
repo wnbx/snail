@@ -11,7 +11,7 @@ import com.acgist.snail.pojo.message.ApplicationMessage;
  */
 public class HideEventAdapter extends GuiEvent {
 
-	protected HideEventAdapter() {
+	public HideEventAdapter() {
 		super(Type.HIDE, "隐藏窗口事件");
 	}
 
@@ -22,7 +22,7 @@ public class HideEventAdapter extends GuiEvent {
 	
 	@Override
 	protected void executeExtend(Object ... args) {
-		final ApplicationMessage message = ApplicationMessage.message(ApplicationMessage.Type.HIDE);
+		final ApplicationMessage message = ApplicationMessage.Type.HIDE.build();
 		GuiContext.getInstance().sendExtendGuiMessage(message);
 	}
 	

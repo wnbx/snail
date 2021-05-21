@@ -26,8 +26,8 @@ public final class PeerCryptMessageCodec extends MessageCodec<ByteBuffer, ByteBu
 	private final MSECryptHandshakeHandler mseCryptHandshakeHandler;
 	
 	/**
-	 * @param peerUnpackMessageCodec Peer消息代理
-	 * @param peerSubMessageHandler MSE加密握手代理
+	 * @param peerUnpackMessageCodec Peer消息处理器
+	 * @param peerSubMessageHandler Peer消息代理
 	 */
 	public PeerCryptMessageCodec(PeerUnpackMessageCodec peerUnpackMessageCodec, PeerSubMessageHandler peerSubMessageHandler) {
 		super(peerUnpackMessageCodec);
@@ -36,17 +36,17 @@ public final class PeerCryptMessageCodec extends MessageCodec<ByteBuffer, ByteBu
 	
 	@Override
 	public ByteBuffer encode(ByteBuffer buffer) {
-//		buffer = super.encode(buffer); // 不用编码：提高性能
-		if(this.mseCryptHandshakeHandler.completed()) { // 握手完成
-			this.mseCryptHandshakeHandler.encrypt(buffer); // 加密消息
-		} else { // 握手未完成
-			// 通过Peer加密策略结合软件加密策略决定是否加密
+		if(this.mseCryptHandshakeHandler.completed()) {
+			this.mseCryptHandshakeHandler.encrypt(buffer);
+		} else {
 			final boolean encrypt = this.mseCryptHandshakeHandler.needEncrypt() && CryptConfig.STRATEGY.crypt();
-			if(encrypt) { // 需要加密
-				this.mseCryptHandshakeHandler.handshake(); // 握手
-				this.mseCryptHandshakeHandler.lockHandshake(); // 握手加锁
-				this.mseCryptHandshakeHandler.encrypt(buffer); // 加密消息
-			} else { // 不需要加密：使用明文完成握手
+			if(encrypt) {
+				// 需要加密
+				this.mseCryptHandshakeHandler.handshake();
+				this.mseCryptHandshakeHandler.lockHandshake();
+				this.mseCryptHandshakeHandler.encrypt(buffer);
+			} else {
+				// 不用加密：使用明文完成握手
 				this.mseCryptHandshakeHandler.plaintext();
 			}
 		}
@@ -55,14 +55,14 @@ public final class PeerCryptMessageCodec extends MessageCodec<ByteBuffer, ByteBu
 	
 	@Override
 	public void doDecode(ByteBuffer buffer, InetSocketAddress address) throws NetException {
-		if(this.mseCryptHandshakeHandler.available()) { // 可用
-			if(this.mseCryptHandshakeHandler.completed()) { // 握手完成
+		if(this.mseCryptHandshakeHandler.available()) {
+			if(this.mseCryptHandshakeHandler.completed()) {
 				this.mseCryptHandshakeHandler.decrypt(buffer);
 				this.doNext(buffer, address);
-			} else { // 握手消息
+			} else {
 				this.mseCryptHandshakeHandler.handshake(buffer);
 			}
-		} else { // 不可用
+		} else {
 			LOGGER.debug("Peer消息代理不可用：忽略消息解密");
 		}
 	}

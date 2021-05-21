@@ -7,19 +7,20 @@ import org.junit.jupiter.api.Test;
 
 import com.acgist.snail.utils.Performance;
 
-public class EntityExceptionTest extends Performance {
+class EntityExceptionTest extends Performance {
 
 	@Test
-	public void testEntityException() {
+	void testEntityException() {
 		EntityException exception = assertThrows(EntityException.class, () -> {throw new EntityException();});
 		this.log(exception.getMessage());
 		exception = assertThrows(EntityException.class, () -> {throw new EntityException("网络包大小异常");});
 		this.log(exception.getMessage());
-		exception = assertThrows(EntityException.class, () -> {throw new EntityException(new NullPointerException());});
+		final var nullPointerException = new NullPointerException();
+		exception = assertThrows(EntityException.class, () -> {throw new EntityException(nullPointerException);});
 		this.log(exception.getMessage());
-		exception = assertThrows(EntityException.class, () -> {throw new EntityException("网络包大小异常", new NullPointerException());});
+		exception = assertThrows(EntityException.class, () -> {throw new EntityException("网络包大小异常", nullPointerException);});
 		this.log(exception.getMessage());
-		exception = assertThrows(EntityException.class, () -> {EntityException.requireNull(new Object());});
+		exception = assertThrows(EntityException.class, () -> {EntityException.requireNull(nullPointerException);});
 		this.log(exception.getMessage());
 		exception = assertThrows(EntityException.class, () -> {EntityException.requireNotNull(null);});
 		this.log(exception.getMessage());

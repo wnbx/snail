@@ -13,7 +13,6 @@ import com.acgist.snail.gui.javafx.window.Controller;
 
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.scene.control.ButtonType;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.text.Text;
@@ -23,11 +22,10 @@ import javafx.scene.text.Text;
  * 
  * @author acgist
  */
-public final class AboutController extends Controller implements Initializable {
+public final class AboutController extends Controller {
 	
 	@FXML
 	private BorderPane root;
-	
 	@FXML
 	private Text name;
 	@FXML
@@ -60,7 +58,7 @@ public final class AboutController extends Controller implements Initializable {
 			Alerts.info("检测更新", "当前已是最新版本");
 		} else {
 			final Optional<ButtonType> optional = Alerts.build("检测更新", "是否下载最新版本？", GuiContext.MessageType.CONFIRM);
-			if(optional.isPresent() && optional.get() == ButtonType.OK) {
+			if(Alerts.ok(optional)) {
 				Desktops.browse(SystemConfig.getSource());
 			}
 		}

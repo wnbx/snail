@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 import com.acgist.snail.IContext;
 import com.acgist.snail.context.SystemContext.SystemType;
 import com.acgist.snail.context.recycle.Recycle;
-import com.acgist.snail.context.recycle.windows.WindowsRecycle;
+import com.acgist.snail.context.recycle.WindowsRecycle;
 import com.acgist.snail.utils.StringUtils;
 
 /**
@@ -21,7 +21,7 @@ public final class RecycleContext implements IContext {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RecycleContext.class);
 	
 	/**
-	 * <p>回收站创建器</p>
+	 * <p>回收站构建器</p>
 	 */
 	private static final Function<String, Recycle> BUILDER;
 	
@@ -36,14 +36,11 @@ public final class RecycleContext implements IContext {
 		}
 	}
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private RecycleContext() {
 	}
 	
 	/**
-	 * <p>创建回收站</p>
+	 * <p>新建回收站</p>
 	 * 
 	 * @param path 文件路径
 	 * 
@@ -57,20 +54,20 @@ public final class RecycleContext implements IContext {
 	}
 	
 	/**
-	 * <p>使用回收站删除文件</p>
+	 * <p>回收站删除文件</p>
 	 * 
-	 * @param filePath 文件路径
+	 * @param path 文件路径
 	 * 
 	 * @return 是否删除成功
 	 */
-	public static final boolean recycle(final String filePath) {
-		if(StringUtils.isEmpty(filePath)) {
-			LOGGER.warn("删除文件路径错误：{}", filePath);
+	public static final boolean recycle(final String path) {
+		if(StringUtils.isEmpty(path)) {
+			LOGGER.warn("回收站删除文件失败（路径错误）：{}", path);
 			return false;
 		}
-		final var recycle = RecycleContext.newInstance(filePath);
+		final var recycle = RecycleContext.newInstance(path);
 		if(recycle == null) {
-			// 不支持回收站
+			LOGGER.debug("回收站删除文件失败（不支持）：{}", path);
 			return false;
 		}
 		return recycle.delete();

@@ -10,13 +10,11 @@ import org.slf4j.LoggerFactory;
 import com.acgist.snail.config.PeerConfig.Action;
 import com.acgist.snail.context.SystemThreadContext;
 import com.acgist.snail.context.TrackerContext;
-import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.pojo.session.TorrentSession;
 import com.acgist.snail.pojo.session.TrackerSession;
 
 /**
  * <p>Tracker执行器组</p>
- * <p>Tracker执行器加载和管理</p>
  * 
  * @author acgist
  */
@@ -29,7 +27,7 @@ public final class TrackerLauncherGroup {
 	 */
 	private final TorrentSession torrentSession;
 	/**
-	 * <p>Tracker执行器集合</p>
+	 * <p>TrackerLauncher集合</p>
 	 */
 	private final List<TrackerLauncher> trackerLaunchers;
 	
@@ -42,20 +40,20 @@ public final class TrackerLauncherGroup {
 	}
 	
 	/**
-	 * <p>创建Tracker执行器组</p>
+	 * <p>新建Tracker执行器组</p>
 	 * 
 	 * @param torrentSession BT任务信息
 	 * 
-	 * @return Tracker执行器组
+	 * @return {@link TrackerLauncherGroup}
 	 */
 	public static final TrackerLauncherGroup newInstance(TorrentSession torrentSession) {
 		return new TrackerLauncherGroup(torrentSession);
 	}
 
 	/**
-	 * <p>获取当前使用的所有Tracker服务器声明地址</p>
+	 * <p>获取所有Tracker执行器的声明地址</p>
 	 * 
-	 * @return 当前使用的所有Tracker服务器声明地址
+	 * @return Tracker执行器的声明地址
 	 */
 	public List<String> trackers() {
 		synchronized (this.trackerLaunchers) {
@@ -67,26 +65,22 @@ public final class TrackerLauncherGroup {
 	
 	/**
 	 * <p>加载TrackerLauncher</p>
-	 * <p>优先使用种子的Tracker，如果数量不够可以从系统Tracker列表中添加。</p>
-	 * <p>私有种子不从系统Tracker列表中添加</p>
-	 * 
-	 * @throws DownloadException 下载异常
 	 */
-	public void loadTracker() throws DownloadException {
+	public void loadTracker() {
 		List<TrackerSession> sessions = null;
-		final var action = this.torrentSession.action(); // 下载动作
-		if(action == Action.TORRENT) { // BT任务
+		final var action = this.torrentSession.action();
+		final var context = TrackerContext.getInstance();
+		if(action == Action.TORRENT) {
 			final var torrent = this.torrentSession.torrent();
-			sessions = TrackerContext.getInstance().sessions(torrent.getAnnounce(), torrent.getAnnounceList(), this.torrentSession.isPrivateTorrent());
-		} else if(action == Action.MAGNET) { // 磁力链接任务
+			sessions = context.sessions(torrent.getAnnounce(), torrent.getAnnounceList(), this.torrentSession.privateTorrent());
+		} else if(action == Action.MAGNET) {
 			final var magnet = this.torrentSession.magnet();
-			sessions = TrackerContext.getInstance().sessions(magnet.getTr());
+			sessions = context.sessions(magnet.getTr());
 		} else {
-			LOGGER.warn("加载TrackerLauncher失败（未知动作）：{}", action);
-			return;
+			sessions = context.sessions();
 		}
 		final var list = sessions.stream()
-			.map(client -> TrackerContext.getInstance().buildTrackerLauncher(client, this.torrentSession))
+			.map(client -> context.buildTrackerLauncher(client, this.torrentSession))
 			.collect(Collectors.toList());
 		synchronized (this.trackerLaunchers) {
 			this.trackerLaunchers.addAll(list);

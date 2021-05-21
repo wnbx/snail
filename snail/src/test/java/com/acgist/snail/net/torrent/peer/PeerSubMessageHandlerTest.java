@@ -1,5 +1,7 @@
 package com.acgist.snail.net.torrent.peer;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import org.junit.jupiter.api.Test;
 
 import com.acgist.snail.context.StatisticsContext;
@@ -12,10 +14,10 @@ import com.acgist.snail.pojo.session.TaskSession;
 import com.acgist.snail.protocol.Protocol.Type;
 import com.acgist.snail.utils.Performance;
 
-public class PeerSubMessageHandlerTest extends Performance {
+class PeerSubMessageHandlerTest extends Performance {
 
 	@Test
-	public void testHave() throws DownloadException {
+	void testHave() throws DownloadException {
 		final var path = "e:/snail/07E1B909D8D193D80E440A8593FB57A658223A0E.torrent"; // 没有编码：GBK
 		final var session = TorrentContext.getInstance().newTorrentSession(path);
 		final var peerSession = PeerSession.newInstance(StatisticsContext.getInstance().statistics(), "192.168.1.1", 18888);
@@ -30,6 +32,7 @@ public class PeerSubMessageHandlerTest extends Performance {
 		peerSession.piece(3);
 		peerSession.piece(4);
 		handler.have(1, 2, 3, 4);
+		assertNotNull(handler);
 	}
 	
 }

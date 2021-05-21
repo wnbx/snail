@@ -14,11 +14,12 @@ import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.config.PeerConfig;
 import com.acgist.snail.config.PeerConfig.Source;
+import com.acgist.snail.net.torrent.IPeerConnect;
 import com.acgist.snail.net.torrent.peer.PeerConnect;
 import com.acgist.snail.net.torrent.peer.PeerDownloader;
 import com.acgist.snail.net.torrent.peer.PeerUploader;
 import com.acgist.snail.pojo.IStatisticsSession;
-import com.acgist.snail.pojo.IStatisticsSessionGetter;
+import com.acgist.snail.pojo.StatisticsGetter;
 import com.acgist.snail.utils.BeanUtils;
 import com.acgist.snail.utils.NetUtils;
 import com.acgist.snail.utils.NumberUtils;
@@ -30,7 +31,7 @@ import com.acgist.snail.utils.StringUtils;
  * 
  * @author acgist
  */
-public final class PeerSession implements IStatisticsSessionGetter {
+public final class PeerSession extends StatisticsGetter implements IPeerConnect {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(PeerSession.class);
 	
@@ -52,11 +53,11 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	private volatile byte status = 0;
 	/**
 	 * <p>Peer来源</p>
-	 * <p>Peer可以设置多个来源</p>
+	 * <p>可以设置多个来源</p>
 	 */
 	private volatile byte source = 0;
 	/**
-	 * <p>失败次数</p>
+	 * <p>连接失败次数</p>
 	 */
 	private volatile byte failTimes = 0;
 	/**
@@ -74,27 +75,27 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	/**
 	 * <p>保留位</p>
 	 * <p>协议链接：http://www.bittorrent.org/beps/bep_0004.html</p>
-	 * 
-	 * TODO：独立封装
 	 */
 	private byte[] reserved;
 	/**
-	 * <p>已下载Piece位图</p>
+	 * <p>已经下载Piece位图</p>
+	 * 
+	 * TODO：不是线程安全：是否加锁
 	 */
 	private final BitSet pieces;
 	/**
 	 * <p>下载错误Piece位图</p>
-	 * <p>Piece下载完成后校验失败时设置下载错误Piece位图，选择Piece时需要排除下载错误Piece位图。</p>
+	 * <p>排除下载选择</p>
 	 */
 	private final BitSet badPieces;
 	/**
 	 * <p>推荐下载Piece位图</p>
-	 * <p>优先下载</p>
+	 * <p>优先选择下载</p>
 	 */
 	private final BitSet suggestPieces;
 	/**
 	 * <p>快速允许下载Piece位图</p>
-	 * <p>即是被Peer阻塞依然可以下载的Piece</p>
+	 * <p>即使阻塞依然可以选择下载</p>
 	 */
 	private final BitSet allowedPieces;
 	/**
@@ -102,14 +103,13 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 */
 	private volatile boolean holepunchWait = false;
 	/**
-	 * <p>holepunch等待锁</p>
 	 * <p>holepunch是否连接</p>
-	 * <p>向中继发出rendezvous消息进入等待，收到中继connect消息后设置可以连接并释放等待锁。</p>
+	 * <p>向中继发出rendezvous消息加锁等待，收到中继connect消息后设置可以连接并释放等待锁。</p>
 	 */
 	private AtomicBoolean holepunchConnect = new AtomicBoolean(false);
 	/**
 	 * <p>PEX来源</p>
-	 * <p>直接连接不上时使用holepunch协议连接，PEX来源作为中继。</p>
+	 * <p>holepunch协议使用PEX来源作为中继</p>
 	 */
 	private PeerSession pexSource;
 	/**
@@ -120,10 +120,6 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * <p>Peer下载</p>
 	 */
 	private PeerDownloader peerDownloader;
-	/**
-	 * <p>统计信息</p>
-	 */
-	private final IStatisticsSession statistics;
 	/**
 	 * <p>Peer支持的扩展协议</p>
 	 * <p>协议=协议ID</p>
@@ -136,6 +132,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @param port Peer端口
 	 */
 	private PeerSession(IStatisticsSession parent, String host, Integer port) {
+		super(new StatisticsSession(false, false, parent));
 		this.host = host;
 		this.port = port;
 		this.pieces = new BitSet();
@@ -143,7 +140,6 @@ public final class PeerSession implements IStatisticsSessionGetter {
 		this.suggestPieces = new BitSet();
 		this.allowedPieces = new BitSet();
 		this.extension = new EnumMap<>(PeerConfig.ExtensionType.class);
-		this.statistics = new StatisticsSession(false, false, parent);
 	}
 	
 	/**
@@ -153,37 +149,19 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @param host 地址
 	 * @param port 端口
 	 * 
-	 * @return Peer信息
+	 * @return {@link PeerSession}
 	 */
 	public static final PeerSession newInstance(IStatisticsSession parent, String host, Integer port) {
 		return new PeerSession(parent, host, port);
 	}
 
 	@Override
-	public IStatisticsSession statistics() {
-		return this.statistics;
-	}
-	
-	/**
-	 * <p>获取累计上传大小</p>
-	 * 
-	 * @return 累计上传大小
-	 * 
-	 * @see IStatisticsSession#uploadSize()
-	 */
-	public long uploadSize() {
-		return this.statistics.uploadSize();
-	}
-	
-	/**
-	 * <p>获取累计下载大小</p>
-	 * 
-	 * @return 累计下载大小
-	 * 
-	 * @see IStatisticsSession#downloadSize()
-	 */
-	public long downloadSize() {
-		return this.statistics.downloadSize();
+	public IPeerConnect.ConnectType connectType() {
+		final PeerConnect connect = this.peerConnect();
+		if(connect == null) {
+			return null;
+		}
+		return connect.connectType();
 	}
 	
 	/**
@@ -215,6 +193,26 @@ public final class PeerSession implements IStatisticsSessionGetter {
 			return PeerConfig.UNKNOWN;
 		}
 		return this.clientName;
+	}
+	
+	/**
+	 * <p>设置客户端名称</p>
+	 * 
+	 * @param clientName 客户端名称
+	 */
+	public void clientName(String clientName) {
+		this.clientName = clientName;
+	}
+
+	/**
+	 * <p>判断是否未知终端</p>
+	 * 
+	 * @return 是否未知终端
+	 */
+	public boolean unknownClientName() {
+		return
+			this.clientName == null ||
+			PeerConfig.UNKNOWN.equals(this.clientName);
 	}
 	
 	/**
@@ -264,7 +262,11 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	
 	/**
 	 * <p>清空Piece位图</p>
-	 * <p>清空：已下载Piece位图、下载错误Piece位图、推荐下载Piece位图、快速允许下载Piece位图</p>
+	 * 
+	 * @see #pieces
+	 * @see #badPieces
+	 * @see #suggestPieces
+	 * @see #allowedPieces
 	 */
 	public void cleanPieces() {
 		this.pieces.clear();
@@ -274,25 +276,27 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>设置已下载Piece位图</p>
+	 * <p>设置已经下载Piece位图</p>
 	 * 
-	 * @param pieces 已下载Piece位图
+	 * @param pieces 已经下载Piece位图
 	 */
 	public void pieces(BitSet pieces) {
 		this.pieces.or(pieces);
 	}
 
 	/**
-	 * <p>设置已下载Piece位图</p>
+	 * <p>设置已经下载Piece位图</p>
 	 * 
 	 * @param index Piece索引
 	 */
 	public void piece(int index) {
-		this.pieces.set(index);
+		if(PeerConfig.checkPiece(index)) {
+			this.pieces.set(index);
+		}
 	}
 	
 	/**
-	 * <p>取消已下载Piece位图</p>
+	 * <p>取消已经下载Piece位图</p>
 	 * 
 	 * @param index Piece索引
 	 */
@@ -301,17 +305,17 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>Peer是否含有Piece</p>
+	 * <p>判断Peer是否含有Piece</p>
 	 * 
 	 * @param index Piece索引
 	 * 
-	 * @return 是否含有
+	 * @return 是否含有Piece
 	 */
 	public boolean hasPiece(int index) {
-		if(index < 0) {
-			return false;
+		if(PeerConfig.checkPiece(index)) {
+			return this.pieces.get(index);
 		}
-		return this.pieces.get(index);
+		return false;
 	}
 	
 	/**
@@ -320,14 +324,18 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @param index Piece索引
 	 */
 	public void badPieces(int index) {
-		this.badPieces.set(index);
+		if(PeerConfig.checkPiece(index)) {
+			this.badPieces.set(index);
+		}
 	}
 	
 	/**
 	 * <p>获取可用的Piece位图</p>
-	 * <p>已下载Piece位图排除下载错误Piece位图</p>
 	 * 
 	 * @return 可用的Piece位图
+	 * 
+	 * @see #pieces
+	 * @see #badPieces
 	 */
 	public BitSet availablePieces() {
 		final BitSet bitSet = new BitSet();
@@ -338,13 +346,14 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	
 	/**
 	 * <p>设置推荐下载Piece位图</p>
-	 * <p>同时设置已下载Piece位图</p>
 	 * 
 	 * @param index Piece索引
 	 */
 	public void suggestPieces(int index) {
-		this.pieces.set(index);
-		this.suggestPieces.set(index);
+		if(PeerConfig.checkPiece(index)) {
+			this.pieces.set(index);
+			this.suggestPieces.set(index);
+		}
 	}
 
 	/**
@@ -358,13 +367,14 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	
 	/**
 	 * <p>设置快速允许下载Piece位图</p>
-	 * <p>同时设置已下载Piece位图</p>
 	 * 
 	 * @param index Piece索引
 	 */
 	public void allowedPieces(int index) {
-		this.pieces.set(index);
-		this.allowedPieces.set(index);
+		if(PeerConfig.checkPiece(index)) {
+			this.pieces.set(index);
+			this.allowedPieces.set(index);
+		}
 	}
 
 	/**
@@ -387,25 +397,24 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	
 	/**
 	 * <p>增加失败次数</p>
-	 * <p>握手失败增加失败次数，超过{@linkplain PeerConfig#MAX_FAIL_TIMES 最大失败次数}后不可用。</p>
 	 */
-	public void fail() {
+	public void incrementFailTimes() {
 		this.failTimes++;
 	}
 	
 	/**
-	 * <dl>
-	 * 	<dt>判断是否可用</dt>
-	 * 	<dd>失败次数小于{@linkplain PeerConfig#MAX_FAIL_TIMES 最大失败次数}</dd>
-	 * 	<dd>端口可用（主动连接的客户端可能没有设置端口）</dd>
-	 * </dl>
+	 * <p>判断是否可用</p>
 	 * 
 	 * @return 是否可用
+	 * 
+	 * @see #port
+	 * @see #failTimes
+	 * @see PeerConfig#MAX_FAIL_TIMES
 	 */
 	public boolean available() {
 		return
-			this.failTimes < PeerConfig.MAX_FAIL_TIMES &&
-			this.port != null;
+			this.port != null &&
+			this.failTimes < PeerConfig.MAX_FAIL_TIMES;
 	}
 	
 	/**
@@ -423,7 +432,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @param index 保留位索引
 	 * @param location 扩展协议位置
 	 * 
-	 * @return 是否支持
+	 * @return 是否支持扩展协议
 	 */
 	private boolean supportExtension(int index, int location) {
 		return this.reserved != null && (this.reserved[index] & location) != 0;
@@ -462,7 +471,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @param type 扩展协议类型
 	 * @param typeId 扩展协议标识
 	 */
-	public void addExtensionType(PeerConfig.ExtensionType type, byte typeId) {
+	public void supportExtensionType(PeerConfig.ExtensionType type, byte typeId) {
 		this.extension.put(type, typeId);
 	}
 	
@@ -507,9 +516,9 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	public List<PeerConfig.Source> sources() {
 		final PeerConfig.Source[] sources = PeerConfig.Source.values();
 		final List<PeerConfig.Source> list = new ArrayList<>();
-		for (Source source : sources) {
-			if((this.source & source.value()) != 0) {
-				list.add(source);
+		for (Source value : sources) {
+			if((this.source & value.value()) != 0) {
+				list.add(value);
 			}
 		}
 		return list;
@@ -538,7 +547,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>验证状态</p>
+	 * <p>判断是否处于状态</p>
 	 * 
 	 * @param status 状态
 	 * 
@@ -567,12 +576,12 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>判断是否连接中（上传中、下载中）</p>
+	 * <p>判断是否连接中</p>
+	 * 
+	 * @return 是否连接中
 	 * 
 	 * @see #uploading()
 	 * @see #downloading()
-	 * 
-	 * @return 是否连接中
 	 */
 	public boolean connected() {
 		return this.uploading() || this.downloading();
@@ -610,7 +619,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 
 	/**
-	 * <p>验证pex flags</p>
+	 * <p>验证pex flags是否含有属性</p>
 	 * 
 	 * @param flags pex flags
 	 * 
@@ -666,18 +675,18 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>获取Pex来源</p>
+	 * <p>获取PEX来源</p>
 	 * 
-	 * @return Pex来源
+	 * @return PEX来源
 	 */
 	public PeerSession pexSource() {
 		return this.pexSource;
 	}
 	
 	/**
-	 * <p>设置Pex来源</p>
+	 * <p>设置PEX来源</p>
 	 * 
-	 * @param pexSource Pex来源
+	 * @param pexSource PEX来源
 	 */
 	public void pexSource(PeerSession pexSource) {
 		this.pexSource = pexSource;
@@ -694,8 +703,8 @@ public final class PeerSession implements IStatisticsSessionGetter {
 					try {
 						this.holepunchConnect.wait(PeerConfig.HOLEPUNCH_TIMEOUT);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 					this.holepunchWait = false;
 				}
@@ -714,7 +723,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>holepunch是否等待</p>
+	 * <p>判断holepunch是否等待</p>
 	 * 
 	 * @return 是否等待
 	 */
@@ -723,7 +732,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	}
 	
 	/**
-	 * <p>holepunch是否连接</p>
+	 * <p>判断holepunch是否连接</p>
 	 * 
 	 * @return 是否连接
 	 */
@@ -733,7 +742,7 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	
 	/**
 	 * <p>获取Peer连接</p>
-	 * <p>优先顺序：{@link #peerDownloader}、{@link #peerUploader}</p>
+	 * <p>优先使用下载连接，然后使用上传连接。</p>
 	 * 
 	 * @return Peer连接
 	 */
@@ -804,7 +813,9 @@ public final class PeerSession implements IStatisticsSessionGetter {
 	 * @return 是否相等
 	 */
 	public boolean equals(String host, Integer port) {
-		return StringUtils.equals(this.host, host) && NumberUtils.equals(this.port, port);
+		return
+			StringUtils.equals(this.host, host) &&
+			NumberUtils.equals(this.port, port);
 	}
 	
 	@Override
@@ -817,9 +828,8 @@ public final class PeerSession implements IStatisticsSessionGetter {
 		if(this == object) {
 			return true;
 		}
-		if(object instanceof PeerSession) {
-			final PeerSession peerSession = (PeerSession) object;
-			return peerSession.equals(this.host, this.port);
+		if(object instanceof PeerSession session) {
+			return this.equals(session.host, session.port);
 		}
 		return false;
 	}

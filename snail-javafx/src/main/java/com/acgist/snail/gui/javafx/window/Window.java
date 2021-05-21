@@ -12,16 +12,16 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 /**
  * <p>窗口</p>
  * 
- * @param <T> 控制器泛型
+ * @param <T> 控制器
  * 
  * @author acgist
  */
@@ -29,6 +29,37 @@ public abstract class Window<T extends Controller> extends Application {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Window.class);
 	
+	/**
+	 * <p>按键任务</p>
+	 * 
+	 * @author acgist
+	 */
+	@FunctionalInterface
+	public interface KeyReleasedFunction {
+		
+		/**
+		 * <p>执行按键任务</p>
+		 */
+		void execute();
+		
+	}
+	
+	/**
+	 * <p>窗口标题</p>
+	 */
+	private final String title;
+	/**
+	 * <p>窗口宽度</p>
+	 */
+	private final int width;
+	/**
+	 * <p>窗口高度</p>
+	 */
+	private final int height;
+	/**
+	 * <p>窗口FXML路径</p>
+	 */
+	private final String fxml;
 	/**
 	 * <p>容器</p>
 	 */
@@ -38,7 +69,18 @@ public abstract class Window<T extends Controller> extends Application {
 	 */
 	protected T controller;
 	
-	protected Window() {
+	/**
+	 * @param title 窗口标题
+	 * @param width 窗口宽度
+	 * @param height 窗口高度
+	 * @param fxml 窗口FXML路径
+	 */
+	protected Window(String title, int width, int height, String fxml) {
+		LOGGER.debug("初始化窗口：{}", title);
+		this.title = title;
+		this.width = width;
+		this.height = height;
+		this.fxml = fxml;
 		this.stage = new Stage();
 		try {
 			this.start(this.stage);
@@ -48,29 +90,24 @@ public abstract class Window<T extends Controller> extends Application {
 	}
 	
 	/**
-	 * <p>设置ESC隐藏窗口</p>
+	 * <p>设置窗口置顶显示</p>
 	 */
-	protected void esc() {
-		this.stage.addEventHandler(KeyEvent.KEY_RELEASED, event -> {
-			if(event.getCode() == KeyCode.ESCAPE) {
-				this.stage.hide();
-			}
-		});
+	protected void top() {
+		this.stage.setIconified(false);
 	}
 	
 	/**
 	 * <p>设置Icon</p>
 	 */
 	protected void icon() {
-		this.stage.getIcons().add(new Image(Themes.LOGO_ICON_200));
+		Themes.applyLogo(this.stage.getIcons());
 	}
 	
 	/**
-	 * <p>设置窗口最大化</p>
-	 * <p>窗口最小化隐藏到托盘后，需要设置此项才能正常显示窗口。</p>
+	 * <p>设置ESCAPE隐藏窗口</p>
 	 */
-	protected void maximize() {
-		this.stage.setIconified(false);
+	protected void escape() {
+		this.keyReleased(KeyCode.ESCAPE, this::hide);
 	}
 	
 	/**
@@ -83,53 +120,68 @@ public abstract class Window<T extends Controller> extends Application {
 	/**
 	 * <p>对话框通用设置</p>
 	 * 
-	 * @see #esc()
 	 * @see #icon()
+	 * @see #escape()
 	 * @see #disableResize()
 	 */
 	protected void dialogWindow() {
-		this.esc();
 		this.icon();
+		this.escape();
 		this.disableResize();
+	}
+
+	/**
+	 * <p>隐藏窗口释放资源</p>
+	 */
+	protected void hiddenRelease() {
+		this.stage.addEventFilter(WindowEvent.WINDOW_HIDDEN, event -> this.controller.release());
+	}
+	
+	/**
+	 * <p>注册键盘事件</p>
+	 * 
+	 * @param keyCode 按键编号
+	 * @param function 按键任务
+	 */
+	protected void keyReleased(KeyCode keyCode, KeyReleasedFunction function) {
+		this.stage.addEventHandler(KeyEvent.KEY_RELEASED, event -> {
+			if(event.getCode() == keyCode) {
+				function.execute();
+			}
+		});
 	}
 	
 	/**
 	 * <p>加载fxml、controller</p>
 	 * 
-	 * @param <X> 面板泛型
-	 * 
-	 * @param fxml fxml路径
+	 * @param <X> 面板
 	 * 
 	 * @return 面板
 	 * 
 	 * @throws IOException IO异常
 	 */
-	protected <X> X loadFxml(String fxml) throws IOException {
-		final FXMLLoader loader = new FXMLLoader(this.getClass().getResource(fxml));
-		final X x = loader.load();
+	protected <X> X loadFxml() throws IOException {
+		final FXMLLoader loader = new FXMLLoader(this.getClass().getResource(this.fxml));
+		final X root = loader.load();
 		this.controller = loader.getController();
-		return x;
+		return root;
 	}
 	
 	/**
-	 * <p>创建窗口</p>
+	 * <p>新建窗口</p>
 	 * 
 	 * @param stage 容器
-	 * @param title 标题
-	 * @param width 宽度
-	 * @param height 高度
-	 * @param fxml fxml路径
 	 * @param modality 模态
 	 * 
 	 * @throws IOException IO异常
 	 */
-	protected void buildWindow(Stage stage, String title, int width, int height, String fxml, Modality modality) throws IOException {
-		final Parent root = this.loadFxml(fxml);
-		final Scene scene = new Scene(root, width, height);
-		root.setStyle(Themes.getThemeStyle());
+	protected void buildWindow(Stage stage, Modality modality) throws IOException {
+		final Parent root = this.loadFxml();
+		final Scene scene = new Scene(root, this.width, this.height);
+		Themes.applyStyle(root);
 		stage.initModality(modality);
 		stage.setScene(scene);
-		stage.setTitle(title);
+		stage.setTitle(this.title);
 	}
 	
 	/**
@@ -169,7 +221,7 @@ public abstract class Window<T extends Controller> extends Application {
 			// 图标显示
 			!this.stage.isIconified();
 	}
-	
+
 	/**
 	 * <p>获取容器</p>
 	 * 

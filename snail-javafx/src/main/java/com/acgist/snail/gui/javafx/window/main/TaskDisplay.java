@@ -42,19 +42,16 @@ public final class TaskDisplay {
 	 */
 	public void newTimer(MainController controller) {
 		LOGGER.debug("启动任务列表刷新定时器");
-		synchronized (this) {
+		synchronized (this.lock) {
 			if(this.controller == null) {
 				this.controller = controller;
 				SystemThreadContext.timerAtFixedRate(
 					0,
-					SystemConfig.TASK_REFRESH_INTERVAL,
+					SystemConfig.REFRESH_INTERVAL,
 					TimeUnit.SECONDS,
-					() -> this.refreshTaskStatus()
+					this::refreshTaskStatus
 				);
-				// 释放锁
-				synchronized (this.lock) {
-					this.lock.notifyAll();
-				}
+				this.lock.notifyAll();
 			}
 		}
 	}
@@ -74,21 +71,20 @@ public final class TaskDisplay {
 	}
 	
 	/**
-	 * <p>等待{@link #controller}被初始化</p>
+	 * <p>获取主窗口控制器</p>
 	 * 
 	 * @return 主窗口控制器
 	 */
 	private MainController controller() {
 		if(INSTANCE.controller == null) {
-			// 添加锁
 			synchronized (this.lock) {
+				// 等待初始化完成
 				while(INSTANCE.controller == null) {
 					try {
-						// 注意：wait会释放锁
 						this.lock.wait(SystemConfig.ONE_SECOND_MILLIS);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 				}
 			}

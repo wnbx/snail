@@ -3,6 +3,7 @@ package com.acgist.snail.protocol;
 import java.io.File;
 
 import com.acgist.snail.config.DownloadConfig;
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.context.EntityContext;
 import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.downloader.IDownloader;
@@ -15,9 +16,6 @@ import com.acgist.snail.utils.StringUtils;
 
 /***
  * <p>下载协议</p>
- * 
- * TODO：RTP RTCP RTMP RTSP
- * TODO：blob:http://
  * 
  * @author acgist
  */
@@ -43,7 +41,9 @@ public abstract class Protocol {
 	 */
 	public enum Type {
 
-		/** udp */
+		/**
+		 * <p>UDP</p>
+		 */
 		UDP(
 			new String[] {"udp://.+"},
 			new String[] {"udp://"},
@@ -51,7 +51,9 @@ public abstract class Protocol {
 			"udp://",
 			""
 		),
-		/** tcp */
+		/**
+		 * <p>TCP</p>
+		 */
 		TCP(
 			new String[] {"tcp://.+"},
 			new String[] {"tcp://"},
@@ -59,7 +61,9 @@ public abstract class Protocol {
 			"tcp://",
 			""
 		),
-		/** ftp */
+		/**
+		 * <p>FTP</p>
+		 */
 		FTP(
 			new String[] {"ftp://.+"},
 			new String[] {"ftp://"},
@@ -67,7 +71,9 @@ public abstract class Protocol {
 			"ftp://",
 			""
 		),
-		/** hls */
+		/**
+		 * <p>HLS</p>
+		 */
 		HLS(
 			new String[] {"http://.+\\.m3u8", "https://.+\\.m3u8"},
 			new String[] {},
@@ -75,7 +81,9 @@ public abstract class Protocol {
 			"",
 			".m3u8"
 		),
-		/** http、https */
+		/**
+		 * <p>HTTP、HTTPS</p>
+		 */
 		HTTP(
 			new String[] {"http://.+", "https://.+"},
 			new String[] {"http://", "https://"},
@@ -83,7 +91,9 @@ public abstract class Protocol {
 			"http://",
 			""
 		),
-		/** 磁力链接 */
+		/**
+		 * <p>磁力链接</p>
+		 */
 		MAGNET(
 			new String[] {MAGNET_BASIC, MAGNET_HASH_32, MAGNET_HASH_40},
 			new String[] {"magnet:?xt=urn:btih:"},
@@ -91,7 +101,9 @@ public abstract class Protocol {
 			"magnet:?xt=urn:btih:",
 			""
 		),
-		/** 迅雷链接 */
+		/**
+		 * <p>迅雷链接</p>
+		 */
 		THUNDER(
 			new String[] {"thunder://.+"},
 			new String[] {"thunder://"},
@@ -99,7 +111,9 @@ public abstract class Protocol {
 			"thunder://",
 			""
 		),
-		/** BT：BitTorrent */
+		/**
+		 * <p>BT：BitTorrent</p>
+		 */
 		TORRENT(
 			new String[] {".+\\.torrent"},
 			new String[] {},
@@ -145,6 +159,8 @@ public abstract class Protocol {
 		}
 
 		/**
+		 * <p>获取正则表达式</p>
+		 * 
 		 * @return 正则表达式
 		 */
 		public String[] regexs() {
@@ -152,6 +168,8 @@ public abstract class Protocol {
 		}
 
 		/**
+		 * <p>获取前缀</p>
+		 * 
 		 * @return 前缀
 		 */
 		public String[] prefix() {
@@ -159,7 +177,7 @@ public abstract class Protocol {
 		}
 		
 		/**
-		 * <p>获取链接的前缀</p>
+		 * <p>获取链接前缀</p>
 		 * 
 		 * @param url 链接
 		 * 
@@ -175,6 +193,8 @@ public abstract class Protocol {
 		}
 		
 		/**
+		 * <p>获取后缀</p>
+		 * 
 		 * @return 后缀
 		 */
 		public String[] suffix() {
@@ -182,7 +202,7 @@ public abstract class Protocol {
 		}
 		
 		/**
-		 * <p>获取链接的后缀</p>
+		 * <p>获取链接后缀</p>
 		 * 
 		 * @param url 链接
 		 * 
@@ -198,6 +218,8 @@ public abstract class Protocol {
 		}
 		
 		/**
+		 * <p>获取默认前缀</p>
+		 * 
 		 * @return 默认前缀
 		 */
 		public String defaultPrefix() {
@@ -205,6 +227,8 @@ public abstract class Protocol {
 		}
 		
 		/**
+		 * <p>获取默认后缀</p>
+		 * 
 		 * @return 默认后缀
 		 */
 		public String defaultSuffix() {
@@ -216,12 +240,11 @@ public abstract class Protocol {
 		 * 
 		 * @param url 链接
 		 * 
-		 * @return true-匹配；false-不匹配；
+		 * @return 是否支持下载链接
 		 */
 		public boolean verify(String url) {
 			for (String regex : this.regexs) {
-				final boolean match = StringUtils.regex(url, regex, true);
-				if(match) {
+				if(StringUtils.regex(url, regex, true)) {
 					return true;
 				}
 			}
@@ -231,7 +254,7 @@ public abstract class Protocol {
 		/**
 		 * <p>将Hash转为完整磁力链接</p>
 		 * 
-		 * @param hash 磁力链接Hash
+		 * @param hash Hash
 		 * 
 		 * @return 完整磁力链接
 		 */
@@ -247,7 +270,7 @@ public abstract class Protocol {
 		 * 
 		 * @param url 磁力链接
 		 * 
-		 * @return true-是；false-不是；
+		 * @return 是否是完整磁力链接
 		 */
 		public static final boolean verifyMagnet(String url) {
 			return StringUtils.regex(url, MAGNET_BASIC, true);
@@ -258,7 +281,7 @@ public abstract class Protocol {
 		 * 
 		 * @param url 磁力链接
 		 * 
-		 * @return true-是；false-不是；
+		 * @return 是否是32位磁力链接Hash
 		 */
 		public static final boolean verifyMagnetHash32(String url) {
 			return StringUtils.regex(url, MAGNET_HASH_32, true);
@@ -269,7 +292,7 @@ public abstract class Protocol {
 		 * 
 		 * @param url 磁力链接
 		 * 
-		 * @return true-是；false-不是；
+		 * @return 是否是40位磁力链接Hash
 		 */
 		public static final boolean verifyMagnetHash40(String url) {
 			return StringUtils.regex(url, MAGNET_HASH_40, true);
@@ -282,6 +305,10 @@ public abstract class Protocol {
 	 */
 	protected final Type type;
 	/**
+	 * <p>协议名称</p>
+	 */
+	protected final String name;
+	/**
 	 * <p>下载链接</p>
 	 */
 	protected String url;
@@ -292,9 +319,11 @@ public abstract class Protocol {
 	
 	/**
 	 * @param type 协议类型
+	 * @param name 协议名称
 	 */
-	protected Protocol(Type type) {
+	protected Protocol(Type type, String name) {
 		this.type = type;
+		this.name = name;
 	}
 
 	/**
@@ -302,7 +331,7 @@ public abstract class Protocol {
 	 * 
 	 * @return 协议类型
 	 */
-	public Type type() {
+	public final Type type() {
 		return this.type;
 	}
 	
@@ -311,14 +340,16 @@ public abstract class Protocol {
 	 * 
 	 * @return 协议名称
 	 */
-	public abstract String name();
+	public final String name() {
+		return this.name;
+	}
 	
 	/**
 	 * <p>判断协议是否支持下载链接</p>
 	 * 
 	 * @param url 下载链接
 	 * 
-	 * @return true-支持；false-不支持；
+	 * @return 是否支持下载链接
 	 */
 	public boolean verify(String url) {
 		if(this.type == null) {
@@ -328,14 +359,14 @@ public abstract class Protocol {
 	}
 	
 	/**
-	 * <p>是否可用</p>
+	 * <p>判断是否可用</p>
 	 * 
 	 * @return 是否可用
 	 */
 	public abstract boolean available();
 	
 	/**
-	 * <p>创建下载器</p>
+	 * <p>新建下载器</p>
 	 * 
 	 * @param taskSession 下载任务
 	 * 
@@ -344,7 +375,7 @@ public abstract class Protocol {
 	public abstract IDownloader buildDownloader(ITaskSession taskSession);
 	
 	/**
-	 * <p>创建下载任务</p>
+	 * <p>新建下载任务</p>
 	 * 
 	 * @param url 下载链接
 	 * 
@@ -365,12 +396,15 @@ public abstract class Protocol {
 			success = false;
 			throw new DownloadException("下载失败", e);
 		} finally {
+			if(success) {
+				this.success();
+			}
 			this.release(success);
 		}
 	}
 
 	/**
-	 * <p>创建下载任务</p>
+	 * <p>新建下载任务</p>
 	 * 
 	 * @throws DownloadException 下载异常
 	 */
@@ -380,7 +414,7 @@ public abstract class Protocol {
 		this.buildUrl();
 		this.buildType();
 		this.buildStatus();
-		final String fileName = FileUtils.fileNameFormat(this.buildFileName());
+		final String fileName = this.buildFileName();
 		this.buildName(fileName);
 		this.buildFile(fileName);
 		this.buildFileType(fileName);
@@ -443,13 +477,13 @@ public abstract class Protocol {
 	 * @throws DownloadException 下载异常
 	 */
 	protected void buildName(String fileName) throws DownloadException {
-		String name = fileName;
+		String taskName = fileName;
 		// 去掉后缀
-		final int index = fileName.lastIndexOf('.');
+		final int index = fileName.lastIndexOf(SymbolConfig.Symbol.DOT.toChar());
 		if(index != -1) {
-			name = fileName.substring(0, index);
+			taskName = fileName.substring(0, index);
 		}
-		this.taskEntity.setName(name);
+		this.taskEntity.setName(taskName);
 	}
 	
 	/**
@@ -505,9 +539,15 @@ public abstract class Protocol {
 	}
 	
 	/**
+	 * <p>成功处理</p>
+	 */
+	protected void success() {
+	}
+	
+	/**
 	 * <p>释放资源</p>
 	 * 
-	 * @param success 创建状态：true-成功；false-失败；
+	 * @param success 是否成功
 	 */
 	protected void release(boolean success) {
 		this.url = null;

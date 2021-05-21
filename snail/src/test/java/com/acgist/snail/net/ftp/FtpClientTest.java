@@ -13,17 +13,16 @@ import com.acgist.snail.context.exception.NetException;
 import com.acgist.snail.utils.FileUtils;
 import com.acgist.snail.utils.Performance;
 
-public class FtpClientTest extends Performance {
+class FtpClientTest extends Performance {
 
 	@Test
-	public void testDownload() throws FileNotFoundException, IOException, NetException {
+	void testDownload() throws FileNotFoundException, IOException, NetException {
 		if(SKIP_COSTED) {
 			this.log("跳过testDownload测试");
 			return;
 		}
 		final String path = "ftp://localhost/ftp/中文文件.exe";
 //		final String path = "ftp://localhost/ftp/FTPserver.exe";
-//		final String path = "ftp://demo:password@test.rebex.net/readme.txt";
 		final var client = FtpClient.newInstance(path);
 		final var success = client.connect();
 		if(!success) {
@@ -32,7 +31,7 @@ public class FtpClientTest extends Performance {
 		}
 		this.log("文件大小：" + client.size());
 		final var input = client.download();
-		final String target = "E:/tmp/" + FileUtils.fileName(path);
+		final String target = "E:/snail/tmp/" + FileUtils.fileName(path);
 		final var output = new FileOutputStream(target);
 		input.transferTo(output);
 		output.flush();

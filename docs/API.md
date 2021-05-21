@@ -3,10 +3,12 @@
 ## 目录
 
 * [协议](#协议)
-	* [注册协议](#注册协议)
 	* [添加协议](#添加协议)
+	* [注册协议](#注册协议)
 * [任务管理](#任务管理)
 	* [添加任务](#添加任务)
+	* [添加BT任务](#添加bt任务)
+	* [任务信息](#任务信息)
 	* [开始任务](#开始任务)
 	* [暂停任务](#暂停任务)
 	* [删除任务](#删除任务)
@@ -21,14 +23,9 @@
 * [启动模式](#启动模式)
 	* [后台模式](#后台模式)
 	* [启动参数](#启动参数)
+* [GUI事件](#gui事件)
 
 ## 协议
-
-### 注册协议
-
-```java
-ProtocolContext.getInstance().register(protocol);
-```
 
 ### 添加协议
 
@@ -50,40 +47,115 @@ ProtocolContext.getInstance().register(protocol);
 
 > 多文件下载完成调用`unlockDownload`方法结束下载
 
+### 注册协议
+
+```java
+ProtocolContext.getInstance().register(protocol);
+```
+
 ## 任务管理
 
 ### 添加任务
 
-#### Snail
-
 ```java
-ITaskSession taskSession = Snail.getInstance().download(url)
-```
-
-#### TaskContext
-
-```java
-ITaskSession taskSession = TaskContext.getInstance().download(url)
+final Snail snail = SnailBuilder.newBuilder()
+// 启用FTP下载协议
+//	.enableFtp()
+// 启用HLS下载协议
+//	.enableHls()
+// 启用HTTP下载协议
+//	.enableHttp()
+// 启用磁力链接下载协议
+//	.enableMagnet()
+// 启用BT下载协议
+//	.enableTorrent()
+// 启用所有下载协议
+	.enableAllProtocol()
+// 加载下载任务
+//	.loadTask()
+// 启动系统监听
+//	.application()
+// 同步创建
+	.buildSync();
+// 添加下载
+snail.download("下载链接");
+// 等待下载完成：可以自行实现阻塞替换
+snail.lockDownload();
 ```
 
 > 任务添加完成自动开始下载不用调用开始任务方法
 
+### 添加BT任务
+
+#### 下载所有文件
+
+```java
+final String torrentPath = "种子文件";
+final var snail = SnailBuilder.newBuilder()
+	.enableTorrent()
+	.buildSync();
+// 注册文件选择事件
+GuiContext.register(new MultifileEventAdapter());
+// 开始下载
+snail.download(torrentPath);
+snail.lockDownload();
+```
+
+#### 下载指定文件
+
+```java
+final String torrentPath = "种子文件";
+final var snail = SnailBuilder.newBuilder()
+	.enableTorrent()
+	.buildSync();
+// 解析种子文件
+final var torrent = TorrentContext.loadTorrent(torrentPath);
+// 过滤下载文件
+final var list = torrent.getInfo().files().stream()
+	.filter(TorrentFile::notPaddingFile)
+	.map(TorrentFile::path)
+	.filter(path -> path.endsWith(".mkv"))
+	.collect(Collectors.toList());
+// 设置下载文件
+GuiContext.getInstance().files(MultifileSelectorWrapper.newEncoder(list).serialize());
+// 注册文件选择事件
+GuiContext.register(new MultifileEventAdapter());
+// 开始下载
+snail.download(torrentPath);
+snail.lockDownload();
+```
+
+#### BT任务指定优先下载位置
+
+```java
+TorrentSession.piecePos(int)
+```
+
+> 如果能够从指定位置开始选择Piece，则优先从指定位置开始下载，反之则会忽略指定位置从0开始下载。
+
+### 任务信息
+
+```java
+// 下载状态或者下载速度（下载中）
+ITaskSession.getStatusValue();
+```
+
 ### 开始任务
 
 ```java
-ITaskSession#.start();
+ITaskSession.start();
 ```
 
 ### 暂停任务
 
 ```java
-ITaskSession#.pause();
+ITaskSession.pause();
 ```
 
 ### 删除任务
 
 ```java
-ITaskSession#.delete();
+ITaskSession.delete();
 ```
 
 ## BT管理
@@ -140,7 +212,7 @@ B编码Map
 |名称|必要|描述|
 |:--|:--|:--|
 |url|√|下载链接|
-|files|○|种子文件选择列表|
+|files|○|选择下载文件列表|
 
 #### 任务列表响应主体
 
@@ -162,8 +234,11 @@ B编码List&lt;Map&gt;
 |endDate|○|完成时间|
 |description|○|下载描述|
 |payload|○|任务负载|
+|statusValue|√|下载速度|
 
 *√=必要、○-可选*
+
+> 下载速度：下载中任务才返回速度，其他情况返回任务状态。
 
 ### 系统通知
 
@@ -175,7 +250,8 @@ B编码List&lt;Map&gt;
 |隐藏窗口|HIDE|-|
 |窗口消息|ALERT|[窗口消息和提示消息主体](#窗口消息和提示消息主体)|
 |提示消息|NOTICE|[窗口消息和提示消息主体](#窗口消息和提示消息主体)|
-|刷新任务|REFRESH|-|
+|刷新任务列表|REFRESH_TASK_LIST|-|
+|刷新任务状态|REFRESH_TASK_STATUS|-|
 |响应消息|RESPONSE|文本|
 
 #### 窗口消息和提示消息主体
@@ -205,3 +281,24 @@ B编码Map
 ```bash
 java -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar mode=[native|extend]
 ```
+
+## GUI事件
+
+GUI分为**本地GUI**和**扩展GUI**，GUI事件用来通知界面应该做出什么提示。
+
+后台模式直接使用`GuiContext.registerAdapter()`，本地GUI按需适配。
+
+#### GUI适配
+
+|名称|类型|系统通知|详细描述|适配器|
+|:--|:--|:--|:--|:--|
+|显示窗口|SHOW|SHOW|显示窗口|ShowEventAdapter|
+|隐藏窗口|HIDE|HIDE|隐藏窗口|HideEventAdapter|
+|退出窗口|EXIT|-|退出系统（静默处理）|ExitEventAdapter|
+|创建窗口|BUILD|-|阻塞系统（静默处理）|BuildEventAdapter|
+|窗口消息|ALERT|ALERT|窗口消息|AlertEventAdapter|
+|提示消息|NOTICE|NOTICE|提示消息|NoticeEventAdapter|
+|响应消息|RESPONSE|RESPONSE|操作响应消息|ResponseEventAdapter|
+|选择下载文件|MULTIFILE|-|选择下载文件（静默处理）|MultifileEventAdapter|
+|刷新任务列表|REFRESH_TASK_LIST|REFRESH_TASK_LIST|添加任务、删除任务|RefreshTaskListEventAdapter|
+|刷新任务状态|REFRESH_TASK_STATUS|REFRESH_TASK_STATUS|开始任务、暂停任务|RefreshTaskStatusEventAdapter|

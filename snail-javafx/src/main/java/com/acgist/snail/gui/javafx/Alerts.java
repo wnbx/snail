@@ -8,7 +8,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
-import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 /**
@@ -19,6 +18,17 @@ import javafx.stage.Stage;
 public final class Alerts {
 	
 	private Alerts() {
+	}
+	
+	/**
+	 * <p>判断是否点击OK按钮</p>
+	 * 
+	 * @param optional 按钮类型
+	 * 
+	 * @return 是否点击OK按钮
+	 */
+	public static final boolean ok(Optional<ButtonType> optional) {
+		return optional.isPresent() && optional.get() == ButtonType.OK;
 	}
 	
 	/**
@@ -57,10 +67,10 @@ public final class Alerts {
 	public static final Optional<ButtonType> build(String title, String message, GuiContext.MessageType type) {
 		final Alert alert = new Alert(getAlertType(type));
 		final Scene scene = alert.getDialogPane().getScene();
-		Themes.applyTheme(scene);
+		Themes.applyStyle(scene);
 		final Stage stage = (Stage) scene.getWindow();
 		// 设置图标
-		stage.getIcons().add(new Image(Themes.LOGO_ICON_200));
+		Themes.applyLogo(stage.getIcons());
 		alert.setTitle(title);
 		// 去掉头部
 		alert.setHeaderText(null);

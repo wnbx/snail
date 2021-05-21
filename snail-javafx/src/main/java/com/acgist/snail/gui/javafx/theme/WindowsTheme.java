@@ -1,14 +1,13 @@
 package com.acgist.snail.gui.javafx.theme;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.acgist.snail.gui.javafx.ITheme;
 import com.acgist.snail.gui.javafx.Themes;
-import com.acgist.snail.utils.IoUtils;
 import com.acgist.snail.utils.StringUtils;
 
 import javafx.scene.paint.Color;
@@ -23,17 +22,13 @@ public final class WindowsTheme implements ITheme {
 	private static final Logger LOGGER = LoggerFactory.getLogger(WindowsTheme.class);
 
 	/**
-	 * <p>Windows主题颜色PATH</p>
-	 */
-	private static final String THEME_COLOR_PATH = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\History\\Colors";
-	/**
 	 * <p>Windows主题颜色KEY</p>
 	 */
 	private static final String THEME_COLOR_KEY = "ColorHistory0";
 	/**
-	 * <p>Windows获取主题颜色命令</p>
+	 * <p>Windows主题颜色PATH</p>
 	 */
-	private static final String THEME_COLOR_COMMAND = "REG QUERY " + THEME_COLOR_PATH + " /v " + THEME_COLOR_KEY;
+	private static final String THEME_COLOR_PATH = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\History\\Colors";
 	
 	private WindowsTheme() {
 	}
@@ -41,7 +36,7 @@ public final class WindowsTheme implements ITheme {
 	/**
 	 * <p>新建Windows系统主题</p>
 	 * 
-	 * @return Windows系统主题
+	 * @return {@link WindowsTheme}
 	 */
 	public static final WindowsTheme newInstance() {
 		return new WindowsTheme();
@@ -49,13 +44,37 @@ public final class WindowsTheme implements ITheme {
 	
 	@Override
 	public Color systemThemeColor() {
+		Process process = null;
+		final ProcessBuilder builder = new ProcessBuilder();
+		try {
+			// 查询命令：REG QUERY HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\History\Colors /v ColorHistory0
+			process = builder.command("REG", "QUERY", THEME_COLOR_PATH, "/v", THEME_COLOR_KEY)
+				.redirectErrorStream(true)
+				.start();
+			return this.process(process);
+		} catch (Exception e) {
+			LOGGER.error("获取Windows主题颜色异常", e);
+		} finally {
+			if(process != null) {
+				process.destroy();
+			}
+		}
+		return Themes.DEFAULT_THEME_COLOR;
+	}
+	
+	/**
+	 * <p>读取命令</p>
+	 * 
+	 * @param process 命令
+	 * 
+	 * @return 颜色
+	 * 
+	 * @throws IOException IO异常
+	 */
+	private Color process(Process process) throws IOException {
 		String line;
 		String color = null;
-		Process process = null;
-		BufferedReader reader = null;
-		try {
-			process = Runtime.getRuntime().exec(THEME_COLOR_COMMAND);
-			reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+		try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 			while ((line = reader.readLine()) != null) {
 				line = line.trim();
 				if(StringUtils.startsWith(line, THEME_COLOR_KEY)) {
@@ -64,18 +83,10 @@ public final class WindowsTheme implements ITheme {
 					break;
 				}
 			}
-			return this.convertWindowsColor(color);
-		} catch (Exception e) {
-			LOGGER.error("获取Windows主题颜色异常", e);
-		} finally {
-			IoUtils.close(reader);
-			if(process != null) {
-				process.destroy();
-			}
 		}
-		return Themes.DEFAULT_THEME_COLOR;
+		return this.convertColor(color);
 	}
-
+	
 	/**
 	 * <p>Windows颜色转换</p>
 	 * 
@@ -83,21 +94,21 @@ public final class WindowsTheme implements ITheme {
 	 * 
 	 * @return 颜色
 	 */
-	private Color convertWindowsColor(String colorValue) {
+	private Color convertColor(String colorValue) {
 		Color theme;
 		if(colorValue == null) {
 			theme = Themes.DEFAULT_THEME_COLOR;
 		} else {
 			final long value = Long.parseLong(colorValue.substring(2), 16);
-			final int alpha = (int) ((value >> 24) & 0xFF); // 透明度：可能不存在
+			final int alpha = (int) ((value >> 24) & 0xFF);
 			final int blud = (int) ((value >> 16) & 0xFF);
 			final int green = (int) ((value >> 8) & 0xFF);
 			final int red = (int) (value & 0xFF);
-			final double opacity = alpha >= 255D ? 1D : alpha / 255D;
-			if(alpha == 0) {
-				// 没有透明度默认设置不透明
+			if(alpha <= 0) {
+				// 没有透明度：设置不透明
 				theme = Color.rgb(red, green, blud);
 			} else {
+				final double opacity = alpha >= 255D ? 1D : alpha / 255D;
 				theme = Color.rgb(red, green, blud, opacity);
 			}
 		}

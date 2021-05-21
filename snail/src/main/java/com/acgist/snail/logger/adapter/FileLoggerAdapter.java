@@ -39,35 +39,18 @@ public final class FileLoggerAdapter extends LoggerAdapter {
 		this.errorOutput = output;
 	}
 
-	/**
-	 * <p>创建文件输出流</p>
-	 * 
-	 * @return 文件输出流
-	 */
-	private OutputStream buildOutput() {
-		final int fileBuffer = LoggerConfig.getFileBuffer();
-		final File file = this.buildFile();
-		this.buildParent(file);
-		try {
-			return new BufferedOutputStream(new FileOutputStream(file, true), fileBuffer);
-		} catch (IOException e) {
-			LoggerContext.error(e);
-		}
-		return null;
-	}
-	
 	@Override
 	public void release() {
 		super.release();
 		final File file = this.buildFile();
 		final String fileName = file.getName();
-		final LocalDateTime now = LocalDateTime.now();
+		final LocalDateTime time = LocalDateTime.now();
 		final int maxDays = LoggerConfig.getFileMaxDays();
 		final File[] childrens = file.getParentFile().listFiles();
 		for (File children : childrens) {
-			if(this.deleteable(maxDays, fileName, now, children)) {
+			if(this.deleteable(maxDays, fileName, children, time)) {
 				try {
-					Files.delete(file.toPath());
+					Files.delete(children.toPath());
 				} catch (IOException e) {
 					LoggerContext.error(e);
 				}
@@ -76,7 +59,23 @@ public final class FileLoggerAdapter extends LoggerAdapter {
 	}
 	
 	/**
-	 * <p>创建日志文件</p>
+	 * <p>新建文件输出流</p>
+	 * 
+	 * @return 文件输出流
+	 */
+	private OutputStream buildOutput() {
+		final int fileBuffer = LoggerConfig.getFileBuffer();
+		final File file = this.buildFile();
+		try {
+			return new BufferedOutputStream(new FileOutputStream(file, true), fileBuffer);
+		} catch (IOException e) {
+			LoggerContext.error(e);
+		}
+		return null;
+	}
+	
+	/**
+	 * <p>新建日志文件</p>
 	 * 
 	 * @return 日志文件
 	 */
@@ -84,50 +83,46 @@ public final class FileLoggerAdapter extends LoggerAdapter {
 		final String fileName = LoggerConfig.getFileName();
 		final SimpleDateFormat format = new SimpleDateFormat(FILE_SUFFIX_FORMAT);
 		final String path = fileName + format.format(new Date());
-		return new File(path);
-	}
-	
-	/**
-	 * <p>创建上级目录</p>
-	 * 
-	 * @param file 日志文件
-	 */
-	private void buildParent(File file) {
+		final File file = new File(path);
+		// 创建上级目录
 		final File parent = file.getParentFile();
 		if(!parent.exists()) {
 			parent.mkdirs();
 		}
+		return file;
 	}
 	
 	/**
 	 * <p>判断文件是否能够删除</p>
-	 * <p>超过最大备份数量、日志文件名称匹配</p>
 	 * 
 	 * @param maxDays 最大备份数量
 	 * @param fileName 日志文件名称
-	 * @param now 当前时间
-	 * @param file 日志文件
+	 * @param logFile 日志文件
+	 * @param time 当前时间
 	 * 
 	 * @return 是否可以删除
 	 */
-	private boolean deleteable(int maxDays, String fileName, LocalDateTime now, File file) {
+	private boolean deleteable(int maxDays, String fileName, File logFile, LocalDateTime time) {
+		if(!logFile.exists() || !logFile.isFile()) {
+			return false;
+		}
 		// 判断修改时间
-		final LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(file.lastModified()), ZoneId.systemDefault());
-		final long days = Duration.between(localDateTime, now).toDays();
+		final LocalDateTime modifyTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(logFile.lastModified()), ZoneId.systemDefault());
+		final long days = Duration.between(modifyTime, time).toDays();
 		if(days <= maxDays) {
 			return false;
 		}
 		// 判断文件名称
-		final String oldFileName = file.getName();
-		if(oldFileName.length() != fileName.length()) {
+		final String logFileName = logFile.getName();
+		if(logFileName.length() != fileName.length()) {
 			return false;
 		}
 		// snail.log.yyyy.MM.dd
-		final int length = oldFileName.length() - FILE_SUFFIX_FORMAT.length();
+		final int length = logFileName.length() - FILE_SUFFIX_FORMAT.length();
 		if(length <= 0) {
 			return false;
 		}
-		return oldFileName.substring(0, length).equals(fileName.substring(0, length));
+		return logFileName.substring(0, length).equals(fileName.substring(0, length));
 	}
 	
 }

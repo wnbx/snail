@@ -9,12 +9,12 @@ import org.junit.jupiter.api.Test;
 
 import com.acgist.snail.utils.Performance;
 
-public class MSECryptHandshakeHandlerTest extends Performance {
+class MSECryptHandshakeHandlerTest extends Performance {
 
 	private final ByteBuffer buffer = ByteBuffer.allocate(1024);
 	
 	@Test
-	public void testMatch() {
+	void testMatch() {
 		this.buffer.put("0".repeat(10).getBytes());
 		this.buffer.put("1".repeat(10).getBytes());
 		this.buffer.put("2".repeat(10).getBytes());
@@ -48,7 +48,8 @@ public class MSECryptHandshakeHandlerTest extends Performance {
 		this.log(this.buffer);
 	}
 
-	public boolean match(byte[] bytes) {
+	// 完全复制方法
+	boolean match(byte[] bytes) {
 		final int length = bytes.length;
 		this.buffer.flip();
 		if(this.buffer.remaining() < length) {
@@ -60,7 +61,8 @@ public class MSECryptHandshakeHandlerTest extends Performance {
 			if(this.buffer.get() != bytes[index]) {
 				// 最开始的位置移动一位继续匹配
 				this.buffer.position(this.buffer.position() - index);
-				index = 0; // 注意位置
+				// 注意重置索引位置
+				index = 0;
 				if(this.buffer.remaining() < length) {
 					// 剩余数据不足跳出：防止丢弃匹配数据
 					break;

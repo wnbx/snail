@@ -1,6 +1,7 @@
 package com.acgist.snail.format;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
@@ -12,10 +13,10 @@ import org.junit.jupiter.api.Test;
 import com.acgist.snail.context.exception.PacketSizeException;
 import com.acgist.snail.utils.Performance;
 
-public class BEncodeTest extends Performance {
+class BEncodeTest extends Performance {
 
 	@Test
-	public void testBEncode() throws PacketSizeException {
+	void testBEncode() throws PacketSizeException {
 		final BEncodeEncoder encoder = BEncodeEncoder.newInstance();
 		encoder
 			.newList().put(List.of("a", "b")).flush()
@@ -40,10 +41,21 @@ public class BEncodeTest extends Performance {
 		assertEquals("xxxx", odd);
 		assertTrue(map.size() == 1);
 		assertTrue(list.size() == 2);
+		final String mix = BEncodeEncoder.newInstance()
+			.newList().put(List.of("a", List.of("b", "c"), Map.of("d", "e"))).flush().toString();
+		this.log(mix);
+		assertEquals("l1:al1:b1:ced1:d1:eee", mix);
+		final var mixList = BEncodeDecoder.newInstance(mix).nextList();
+		assertEquals("a", new String((byte[]) mixList.get(0)));
+		final List<?> mixListList = (List<?>) mixList.get(1);
+		assertEquals("b", new String((byte[]) mixListList.get(0)));
+		assertEquals("c", new String((byte[]) mixListList.get(1)));
+		final Map<?, ?> mixListMap = (Map<?, ?>) mixList.get(2);
+		assertEquals("e", new String((byte[]) mixListMap.get("d")));
 	}
 	
 	@Test
-	public void testNull() throws PacketSizeException {
+	void testNull() throws PacketSizeException {
 		final Map<String, Object> map = new LinkedHashMap<>();
 		map.put("a", 1);
 		map.put("b", null);
@@ -66,7 +78,7 @@ public class BEncodeTest extends Performance {
 	}
 	
 	@Test
-	public void testEncode() {
+	void testEncode() {
 		final String map = BEncodeEncoder.encodeMapString(Map.of("1", "2"));
 		final String list = BEncodeEncoder.encodeListString(List.of("1", "2"));
 		assertEquals("d1:11:2e", map);
@@ -74,7 +86,29 @@ public class BEncodeTest extends Performance {
 	}
 
 	@Test
-	public void testCosted() {
+	void testException() throws PacketSizeException {
+		assertThrows(IllegalArgumentException.class, () -> BEncodeDecoder.newInstance("l"));
+	}
+	
+	@Test
+	void testEmpty() throws PacketSizeException {
+		var decoder = BEncodeDecoder.newInstance("d1:11:2e");
+		assertTrue(decoder.isEmpty());
+		decoder.nextType();
+		assertTrue(decoder.isNotEmpty());
+		decoder = BEncodeDecoder.newInstance("de");
+		assertEquals(BEncodeDecoder.Type.MAP, decoder.nextType());
+		assertTrue(decoder.isEmpty());
+		decoder = BEncodeDecoder.newInstance("le");
+		assertEquals(BEncodeDecoder.Type.LIST, decoder.nextType());
+		assertTrue(decoder.isEmpty());
+		decoder = BEncodeDecoder.newInstance("xx");
+		decoder.nextType();
+		assertTrue(decoder.isEmpty());
+	}
+	
+	@Test
+	void testCosted() {
 		final long costed = this.costed(100000, () -> {
 			BEncodeEncoder.encodeMapString(Map.of("1", "2"));
 			BEncodeEncoder.encodeListString(List.of("1", "2"));

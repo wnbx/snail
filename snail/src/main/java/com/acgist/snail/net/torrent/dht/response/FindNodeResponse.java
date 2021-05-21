@@ -29,7 +29,7 @@ public final class FindNodeResponse extends DhtResponse {
 	}
 
 	/**
-	 * <p>创建响应</p>
+	 * <p>新建响应</p>
 	 * 
 	 * @param request 请求
 	 * 
@@ -40,7 +40,7 @@ public final class FindNodeResponse extends DhtResponse {
 	}
 	
 	/**
-	 * <p>创建响应</p>
+	 * <p>新建响应</p>
 	 * 
 	 * @param response 响应
 	 * 
@@ -52,13 +52,11 @@ public final class FindNodeResponse extends DhtResponse {
 	
 	/**
 	 * <p>获取节点列表</p>
-	 * <p>同时加入系统</p>
 	 * 
 	 * @return 节点列表
 	 */
 	public List<NodeSession> getNodes() {
-		final byte[] bytes = this.getBytes(DhtConfig.KEY_NODES);
-		return deserializeNodes(bytes);
+		return this.deserializeNodes(DhtConfig.KEY_NODES);
 	}
 	
 }

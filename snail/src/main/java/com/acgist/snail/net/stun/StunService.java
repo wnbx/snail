@@ -7,8 +7,10 @@ import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.config.PeerConfig;
 import com.acgist.snail.config.StunConfig;
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.context.NatContext;
+import com.acgist.snail.context.NodeContext;
 import com.acgist.snail.utils.NetUtils;
 import com.acgist.snail.utils.StringUtils;
 
@@ -27,9 +29,6 @@ public final class StunService {
 		return INSTANCE;
 	}
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private StunService() {
 	}
 
@@ -49,14 +48,15 @@ public final class StunService {
 	/**
 	 * <p>设置端口映射信息</p>
 	 * 
-	 * @param externalIpAddress 外网IP地址
+	 * @param externalIPAddress 外网IP地址
 	 * @param port 外网端口
 	 */
-	public void mapping(String externalIpAddress, int port) {
-		LOGGER.debug("STUN端口映射：{}-{}", externalIpAddress, port);
-		PeerConfig.nat(); // 设置使用NAT穿透
-		NatContext.getInstance().stun(); // 设置STUN穿透类型
-		SystemConfig.setExternalIpAddress(externalIpAddress);
+	public void mapping(String externalIPAddress, int port) {
+		LOGGER.debug("STUN端口映射：{}-{}", externalIPAddress, port);
+		PeerConfig.nat();
+		NatContext.getInstance().stun();
+		SystemConfig.setExternalIPAddress(externalIPAddress);
+		NodeContext.getInstance().buildNodeId(externalIPAddress);
 		SystemConfig.setTorrentPortExt(port);
 	}
 
@@ -71,7 +71,7 @@ public final class StunService {
 			LOGGER.warn("STUN服务器格式错误：{}", server);
 			return null;
 		}
-		final String[] values = server.split(":");
+		final String[] values = server.split(SymbolConfig.Symbol.COLON.toString());
 		if(values.length == 1) {
 			// 格式：stun1.l.google.com
 			if(StringUtils.isNotEmpty(values[0])) {

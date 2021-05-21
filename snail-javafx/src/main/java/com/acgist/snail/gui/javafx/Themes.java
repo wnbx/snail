@@ -4,10 +4,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.context.SystemContext.SystemType;
+import com.acgist.snail.gui.javafx.theme.ITheme;
 import com.acgist.snail.gui.javafx.theme.WindowsTheme;
 
+import javafx.collections.ObservableList;
+import javafx.css.Styleable;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
 /**
@@ -29,9 +34,9 @@ public final class Themes {
 	 */
 	public static final String LOGO_ICON_16 = "/image/16/logo.png";
 	/**
-	 * <p>图标文件路径（200PX）：{@value}</p>
+	 * <p>图标文件路径（256PX）：{@value}</p>
 	 */
-	public static final String LOGO_ICON_200 = "/image/logo.png";
+	public static final String LOGO_ICON = "/image/logo.png";
 	/**
 	 * <p>红色：禁用</p>
 	 */
@@ -41,9 +46,9 @@ public final class Themes {
 	 */
 	public static final Color COLOR_GRAY = Color.rgb(0xCC, 0xCC, 0xCC);
 	/**
-	 * <p>灰色：可用</p>
+	 * <p>蓝色：可用</p>
 	 */
-	public static final Color COLOR_BLUD = Color.rgb(0, 153, 204);
+	public static final Color COLOR_BLUD = Color.rgb(0x00, 0x99, 0xCC);
 	/**
 	 * <p>绿色：可用</p>
 	 */
@@ -121,25 +126,71 @@ public final class Themes {
 	}
 	
 	/**
+	 * <p>获取Logo图标</p>
+	 * 
+	 * @return Logo图标
+	 */
+	public static final Image getLogo() {
+		return new Image(Themes.LOGO_ICON);
+	}
+	
+	/**
+	 * <p>获取系统主题颜色</p>
+	 * 
+	 * @return 系统主题颜色
+	 */
+	public static final Color getColor() {
+		return SYSTEM_THEME_COLOR;
+	}
+	
+	/**
 	 * <p>获取系统主题样式</p>
 	 * 
 	 * @return 系统主题样式
 	 */
-	public static final String getThemeStyle() {
+	public static final String getStyle() {
 		return SYSTEM_THEME_STYLE;
 	}
 	
 	/**
-	 * <p>设置控件主题样式</p>
+	 * <p>设置Logo图标</p>
+	 * 
+	 * @param icons 图标列表
+	 */
+	public static final void applyLogo(ObservableList<Image> icons) {
+		icons.add(getLogo());
+	}
+	
+	/**
+	 * <p>设置场景主题样式</p>
 	 * 
 	 * @param scene 场景
 	 */
-	public static final void applyTheme(Scene scene) {
+	public static final void applyStyle(Scene scene) {
 		final Parent root = scene.getRoot();
 		// 设置主题样式
-		root.setStyle(Themes.getThemeStyle());
+		root.setStyle(Themes.getStyle());
 		// 设置样式文件
 		root.getStylesheets().add(Themes.FXML_STYLE);
+	}
+
+	/**
+	 * <p>设置节点主题样式</p>
+	 * 
+	 * @param node 节点
+	 */
+	public static final void applyStyle(Node node) {
+		node.setStyle(Themes.getStyle());
+	}
+	
+	/**
+	 * <p>添加样式</p>
+	 * 
+	 * @param styleable 样式列表
+	 * @param styleClass 样式名称
+	 */
+	public static final void applyClass(Styleable styleable, String styleClass) {
+		styleable.getStyleClass().add(styleClass);
 	}
 	
 }

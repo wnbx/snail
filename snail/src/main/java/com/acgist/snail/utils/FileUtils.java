@@ -19,6 +19,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.pojo.ITaskSession.FileType;
 
@@ -32,20 +33,21 @@ public final class FileUtils {
 	private static final Logger LOGGER = LoggerFactory.getLogger(FileUtils.class);
 	
 	/**
+	 * <p>用户工作目录</p>
+	 */
+	private static final String USER_DIR = System.getProperty("user.dir");
+	/**
 	 * <p>文件大小单位</p>
 	 */
-	private static final String[] FILE_LENGTH_UNIT = {"B", "KB", "M", "G", "T"};
+	private static final String[] FILE_SCALE_UNIT = {"B", "KB", "M", "G", "T"};
 	/**
 	 * <p>文件名禁用字符正则表达式：{@value}</p>
 	 */
 	private static final String FILENAME_REPLACE_REGEX = "[:/\\\\\\*\\?\\<\\>\\|]";
 	/**
-	 * <p>文件名禁用字符替换字符：{@value}</p>
-	 */
-	private static final String FILENAME_REPLACE_TARGET = "";
-	/**
-	 * <p>文件类型和文件后缀（扩展名）</p>
-	 * <p>类型=后缀</p>
+	 * <p>文件类型和文件后缀（扩展名称）</p>
+	 * <p>类型=后缀列表</p>
+	 * <p>注意：后缀需要小写</p>
 	 */
 	private static final Map<FileType, List<String>> FILE_TYPE_EXT = new EnumMap<>(FileType.class);
 	
@@ -78,23 +80,20 @@ public final class FileUtils {
 		FILE_TYPE_EXT.put(FileType.DOCUMENT, List.of(
 			"css", "csv", "doc", "docx", "htm", "html", "json", "log", "md", "pdf", "ppt", "pptx", "txt", "wps", "xls", "xlsx", "xml"
 		));
-		// 安装程序
+		// 安装文件
 		FILE_TYPE_EXT.put(FileType.INSTALL, List.of(
 			"apk", "com", "deb", "exe", "pkg", "rpm"
 		));
 		// 未知文件
-		FILE_TYPE_EXT.put(FileType.UNKNOWN, List.of(
-		));
+		FILE_TYPE_EXT.put(FileType.UNKNOWN, List.of());
+		LOGGER.debug("用户工作目录：{}", FileUtils.userDir());
 	}
 	
-	/**
-	 * <p>工具类禁止实例化</p>
-	 */
 	private FileUtils() {
 	}
 	
 	/**
-	 * <p>统一路径分隔符为系统分隔符</p>
+	 * <p>将路径分隔符修改为系统分隔符</p>
 	 * 
 	 * @param path 原始路径
 	 * 
@@ -105,8 +104,8 @@ public final class FileUtils {
 			return path;
 		}
 		return path
-			.replace('/', File.separatorChar)
-			.replace('\\', File.separatorChar);
+			.replace(SymbolConfig.Symbol.SLASH.toChar(), File.separatorChar)
+			.replace(SymbolConfig.Symbol.BACKSLASH.toChar(), File.separatorChar);
 	}
 	
 	/**
@@ -124,35 +123,33 @@ public final class FileUtils {
 	}
 	
 	/**
-	 * <p>递归删除文件</p>
+	 * <p>删除文件</p>
 	 * 
 	 * @param file 文件
 	 */
 	public static final void delete(final File file) {
-		Objects.requireNonNull(file);
-		if(!file.exists()) {
-			LOGGER.debug("删除文件不存在：{}", file.getAbsolutePath());
+		if(file == null || !file.exists()) {
+			LOGGER.debug("删除文件错误：{}", file);
 			return;
 		}
 		// 删除目录
 		if(file.isDirectory()) {
-			// 删除目录子文件
 			final File[] files = file.listFiles();
 			for (File children : files) {
 				delete(children);
 			}
 		}
 		// 删除当前文件或目录
-		LOGGER.info("删除文件：{}", file.getAbsolutePath());
+		LOGGER.info("删除文件：{}", file);
 		try {
 			Files.delete(file.toPath());
 		} catch (IOException e) {
-			LOGGER.error("删除文件失败：{}", file.getAbsoluteFile(), e);
+			LOGGER.error("删除文件失败：{}", file, e);
 		}
 	}
 	
 	/**
-	 * <p>从URL中获取文件名称</p>
+	 * <p>获取URL文件名称</p>
 	 * <p>过滤：协议、域名、路径、参数</p>
 	 * 
 	 * @param url URL
@@ -165,61 +162,50 @@ public final class FileUtils {
 		}
 		// URL解码
 		String fileName = UrlUtils.decode(url);
-		// 斜杠转换
-		if(fileName.contains("\\")) {
-			fileName = fileName.replace('\\', '/');
+		// 反斜杠转换为斜杠
+		final char slash = SymbolConfig.Symbol.SLASH.toChar();
+		if(fileName.contains(SymbolConfig.Symbol.BACKSLASH.toString())) {
+			fileName = fileName.replace(SymbolConfig.Symbol.BACKSLASH.toChar(), slash);
 		}
 		// 过滤：协议、域名、路径
-		int index = fileName.lastIndexOf('/');
+		int index = fileName.lastIndexOf(slash);
 		if(index != -1) {
 			fileName = fileName.substring(index + 1);
 		}
 		// 过滤：参数
-		index = fileName.indexOf('?');
+		index = fileName.indexOf(SymbolConfig.Symbol.QUESTION.toChar());
 		if(index != -1) {
 			fileName = fileName.substring(0, index);
 		}
-		return fileName.trim();
+		// 过滤：特殊字符
+		fileName = fileName.replaceAll(FILENAME_REPLACE_REGEX, "");
+		// 过滤：首尾空格
+		fileName = fileName.trim();
+		if(fileName.isEmpty()) {
+			LOGGER.warn("文件名称错误：{}-{}", fileName, url);
+		}
+		return fileName;
 	}
 	
-	/**
-	 * <p>文件名称过滤</p>
-	 * <p>过滤：{@value #FILENAME_REPLACE_REGEX}</p>
-	 * 
-	 * @param name 文件名称
-	 * 
-	 * @return 文件名称
-	 */
-	public static final String fileNameFormat(String name) {
-		// 过滤文件名禁用字符
-		if(StringUtils.isNotEmpty(name)) {
-			name = name.replaceAll(FILENAME_REPLACE_REGEX, FILENAME_REPLACE_TARGET);
-		}
-		// 过滤后名称为空：随机名称
-		if(StringUtils.isEmpty(name)) {
-			name = NumberUtils.build().toString();
-		}
-		return name.trim();
-	}
-
 	/**
 	 * <p>获取文件类型</p>
 	 * 
 	 * @param fileName 文件名称
 	 * 
 	 * @return 文件类型
+	 * 
+	 * @see #FILE_TYPE_EXT
 	 */
 	public static final FileType fileType(String fileName) {
 		final String ext = fileExt(fileName);
 		if(ext == null) {
 			return FileType.UNKNOWN;
 		}
-		// 小写
+		// 小写后缀
 		final String extLower = ext.toLowerCase();
 		return FILE_TYPE_EXT.entrySet().stream()
 			.filter(entry -> entry.getValue().contains(extLower))
 			.map(Entry::getKey)
-//			.filter(Objects::nonNull) // 绝对有值
 			.findFirst()
 			.orElse(FileType.UNKNOWN);
 	}
@@ -235,7 +221,7 @@ public final class FileUtils {
 		if(StringUtils.isEmpty(fileName)) {
 			return null;
 		}
-		final int index = fileName.lastIndexOf('.');
+		final int index = fileName.lastIndexOf(SymbolConfig.Symbol.DOT.toChar());
 		if(index != -1) {
 			return fileName.substring(index + 1);
 		}
@@ -249,7 +235,7 @@ public final class FileUtils {
 	 * @param bytes 文件数据
 	 */
 	public static final void write(String filePath, byte[] bytes) {
-		buildFolder(filePath, true); // 创建目录
+		buildParentFolder(filePath);
 		try(final var output = new FileOutputStream(filePath)) {
 			output.write(bytes);
 		} catch (IOException e) {
@@ -264,6 +250,7 @@ public final class FileUtils {
 	 * @param target 目标文件
 	 */
 	public static final void move(String source, String target) {
+		buildParentFolder(target);
 		final File sourceFile = new File(source);
 		final File targetFile = new File(target);
 		if(!sourceFile.renameTo(targetFile)) {
@@ -278,6 +265,7 @@ public final class FileUtils {
 	 * @param target 目标文件
 	 */
 	public static final void copy(String source, String target) {
+		buildParentFolder(target);
 		try(
 			final var input = new FileInputStream(source);
 			final var output = new FileOutputStream(target);
@@ -303,30 +291,32 @@ public final class FileUtils {
 	}
 
 	/**
-	 * <p>文件大小格式化</p>
+	 * <p>格式化文件大小</p>
+	 * <p>自动获取大小单位</p>
 	 * 
 	 * @param size 文件大小
 	 * 
-	 * @return 文件大小字符串
+	 * @return 文件大小
 	 */
 	public static final String formatSize(Long size) {
 		if(size == null || size == 0L) {
 			return "0B";
 		}
 		int index = 0;
-		BigDecimal decimal = new BigDecimal(size);
-		while(decimal.longValue() >= SystemConfig.DATA_SCALE) {
-			if(++index >= FILE_LENGTH_UNIT.length) {
-				index = FILE_LENGTH_UNIT.length - 1;
+		BigDecimal decimal = BigDecimal.valueOf(size);
+		final BigDecimal dataScale = BigDecimal.valueOf(SystemConfig.DATA_SCALE);
+		while(decimal.compareTo(dataScale) >= 0) {
+			if(++index >= FILE_SCALE_UNIT.length) {
+				index = FILE_SCALE_UNIT.length - 1;
 				break;
 			}
-			decimal = decimal.divide(new BigDecimal(SystemConfig.DATA_SCALE));
+			decimal = decimal.divide(dataScale);
 		}
-		return decimal.setScale(2, RoundingMode.HALF_UP) + FILE_LENGTH_UNIT[index];
+		return decimal.setScale(2, RoundingMode.HALF_UP) + FILE_SCALE_UNIT[index];
 	}
 	
 	/**
-	 * <p>文件大小格式化（MB）</p>
+	 * <p>格式化文件大小（MB）</p>
 	 * 
 	 * @param size 文件大小
 	 * 
@@ -336,14 +326,24 @@ public final class FileUtils {
 		if(size == null || size == 0L) {
 			return 0D;
 		}
-		BigDecimal decimal = new BigDecimal(size);
-		decimal = decimal.divide(BigDecimal.valueOf(SystemConfig.ONE_MB));
-		return decimal.setScale(2, RoundingMode.HALF_UP).doubleValue();
+		return BigDecimal.valueOf(size)
+			.divide(BigDecimal.valueOf(SystemConfig.ONE_MB))
+			.setScale(2, RoundingMode.HALF_UP)
+			.doubleValue();
+	}
+	
+	/**
+	 * <p>格式化速度</p>
+	 * 
+	 * @return 速度
+	 */
+	public static final String formatSpeed(Long size) {
+		return formatSize(size) + "/S";
 	}
 	
 	/**
 	 * <p>获取文件大小</p>
-	 * <p>如果文件是目录，递归统计目录中所有文件大小。</p>
+	 * <p>目录文件：统计所有文件大小</p>
 	 * 
 	 * @param path 文件路径
 	 * 
@@ -355,13 +355,13 @@ public final class FileUtils {
 			return 0L;
 		}
 		long size = 0L;
-		if(file.isFile()) { // 文件
+		if(file.isFile()) {
 			try {
 				size = Files.size(file.toPath());
 			} catch (IOException e) {
-				LOGGER.error("获取文件大小异常：{}", file.getAbsolutePath(), e);
+				LOGGER.error("获取文件大小异常：{}", file, e);
 			}
-		} else { // 目录
+		} else {
 			final File[] files = file.listFiles();
 			for (File children : files) {
 				size += fileSize(children.getAbsolutePath());
@@ -371,36 +371,48 @@ public final class FileUtils {
 	}
 	
 	/**
-	 * <p>创建目录</p>
+	 * <p>新建上级目录</p>
 	 * 
-	 * @param path 文件路径或目录路径
-	 * @param isFile 路径是否是文件：true-文件；false-目录；
+	 * @param path 文件路径
 	 * 
-	 * @see #buildFolder(File, boolean)
+	 * @see #buildParentFolder(File)
 	 */
-	public static final void buildFolder(String path, boolean isFile) {
-		final File file = new File(path);
-		buildFolder(file, isFile);
+	public static final void buildParentFolder(String path) {
+		buildParentFolder(new File(path));
 	}
 	
 	/**
-	 * <p>创建目录</p>
-	 * <p>如果路径是文件：创建上级目录</p>
-	 * <p>如果路径是目录：创建目录</p>
+	 * <p>新建目录</p>
 	 * 
-	 * @param file 文件路径或目录路径
-	 * @param isFile 路径是否是文件：true-文件；false-目录；
+	 * @param path 文件路径
+	 * 
+	 * @see #buildFolder(File)
 	 */
-	public static final void buildFolder(File file, boolean isFile) {
+	public static final void buildFolder(String path) {
+		buildFolder(new File(path));
+	}
+	
+	/**
+	 * <p>新建上级目录</p>
+	 * 
+	 * @param file 文件
+	 * 
+	 * @see #buildFolder(File)
+	 */
+	public static final void buildParentFolder(File file) {
+		buildFolder(file.getParentFile());
+	}
+	
+	/**
+	 * <p>新建目录</p>
+	 * 
+	 * @param file 文件
+	 */
+	public static final void buildFolder(File file) {
 		if(file == null || file.exists()) {
 			return;
 		}
-		if(isFile) {
-			file = file.getParentFile();
-		}
-		if(!file.exists()) {
-			file.mkdirs();
-		}
+		file.mkdirs();
 	}
 	
 	/**
@@ -445,7 +457,7 @@ public final class FileUtils {
 			return null;
 		}
 		int length;
-		final byte[] bytes = new byte[SystemConfig.DEFAULT_EXCHANGE_BYTES_LENGTH];
+		final byte[] bytes = new byte[SystemConfig.DEFAULT_EXCHANGE_LENGTH];
 		final MessageDigest digest = DigestUtils.digest(algo);
 		try (final var input = new BufferedInputStream(new FileInputStream(file))) {
 			while ((length = input.read(bytes)) != -1) {
@@ -458,6 +470,26 @@ public final class FileUtils {
 	}
 	
 	/**
+	 * <p>获取用户工作目录</p>
+	 * 
+	 * @return 用户工作目录
+	 */
+	public static final String userDir() {
+		return USER_DIR;
+	}
+	
+	/**
+	 * <p>获取用户工作目录中的文件路径</p>
+	 * 
+	 * @param path 文件相对路径
+	 * 
+	 * @return 用户工作目录中的文件路径
+	 */
+	public static final String userDir(String path) {
+		return file(userDir(), path);
+	}
+	
+	/**
 	 * <p>获取用户工作目录中的文件</p>
 	 * 
 	 * @param path 文件相对路径
@@ -465,7 +497,7 @@ public final class FileUtils {
 	 * @return 文件
 	 */
 	public static final File userDirFile(String path) {
-		return new File(SystemConfig.userDir(path));
+		return new File(userDir(path));
 	}
 	
 }

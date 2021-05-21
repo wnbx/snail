@@ -20,7 +20,7 @@ public final class Tooltips {
 	}
 	
 	/**
-	 * <p>创建工具提示</p>
+	 * <p>新建工具提示</p>
 	 * 
 	 * @param value 提示内容
 	 * 
@@ -33,7 +33,7 @@ public final class Tooltips {
 	}
 	
 	/**
-	 * <p>创建工具提示</p>
+	 * <p>新建工具提示</p>
 	 * 
 	 * @param value 提示内容
 	 * @param millis 显示时间：毫秒
@@ -44,7 +44,7 @@ public final class Tooltips {
 		final Tooltip tooltip = new Tooltip(value);
 		tooltip.setShowDelay(Duration.millis(millis));
 		final Scene scene = tooltip.getScene();
-		Themes.applyTheme(scene);
+		Themes.applyStyle(scene);
 		return tooltip;
 	}
 	

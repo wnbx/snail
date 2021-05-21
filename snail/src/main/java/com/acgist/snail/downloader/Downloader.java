@@ -22,14 +22,12 @@ public abstract class Downloader implements IDownloader {
 	
 	/**
 	 * <p>任务失败状态</p>
-	 * <p>true-失败；false-正常；</p>
 	 */
-	protected volatile boolean fail = false;
+	protected volatile boolean fail;
 	/**
 	 * <p>任务完成状态</p>
-	 * <p>true-已完成；false-未完成；</p>
 	 */
-	protected volatile boolean completed = false;
+	protected volatile boolean completed;
 	/**
 	 * <p>任务信息</p>
 	 */
@@ -44,6 +42,8 @@ public abstract class Downloader implements IDownloader {
 	 */
 	protected Downloader(ITaskSession taskSession) {
 		taskSession.buildDownloadSize();
+		this.fail = false;
+		this.completed = false;
 		this.taskSession = taskSession;
 		this.statistics = taskSession.statistics();
 	}
@@ -62,7 +62,7 @@ public abstract class Downloader implements IDownloader {
 			// 没有更多数据
 			length < 0 ||
 			// 累计下载大小大于文件大小
-			// 注意：文件大小必须大于零：可能存在不能正常获取网络文件大小
+			// 需要验证文件大小：可能存在不能正常获取网络文件大小
 			(0L < fileSize && fileSize <= downloadSize);
 	}
 	
@@ -87,13 +87,13 @@ public abstract class Downloader implements IDownloader {
 	}
 	
 	@Override
-	public final boolean statusPause() {
-		return this.taskSession.statusPause();
+	public final boolean statusDownload() {
+		return this.taskSession.statusDownload();
 	}
 	
 	@Override
-	public final boolean statusDownload() {
-		return this.taskSession.statusDownload();
+	public final boolean statusPause() {
+		return this.taskSession.statusPause();
 	}
 	
 	@Override
@@ -124,7 +124,7 @@ public abstract class Downloader implements IDownloader {
 	public boolean verify() throws DownloadException {
 		final boolean verify = this.taskSession.downloadFile().exists();
 		if(!verify) {
-			// 如果文件已删除修改已下载大小
+			// 如果文件已被删除修改已经下载大小
 			this.taskSession.downloadSize(0L);
 		}
 		return verify;
@@ -169,9 +169,9 @@ public abstract class Downloader implements IDownloader {
 				// 加锁：保证资源加载和释放原子性
 				if(this.statusAwait()) {
 					LOGGER.debug("开始下载任务：{}", name);
-					this.fail = false; // 重置下载失败状态
-					this.completed = false; // 重置下载成功状态
-					this.taskSession.setStatus(Status.DOWNLOAD); // 修改任务状态：不能保存
+					this.fail = false;
+					this.completed = false;
+					this.taskSession.setStatus(Status.DOWNLOAD);
 					try {
 						this.open();
 						this.download();
@@ -179,8 +179,9 @@ public abstract class Downloader implements IDownloader {
 						LOGGER.error("任务下载异常", e);
 						this.fail(e.getMessage());
 					}
-					this.checkAndMarkCompleted(); // 标记完成
-					this.release(); // 释放资源
+					this.checkAndMarkCompleted();
+					this.release();
+					this.taskSession.unlockDelete();
 					LOGGER.debug("任务下载结束：{}", name);
 				} else {
 					LOGGER.warn("任务状态错误：{}-{}", name, this.taskSession.getStatus());
@@ -199,7 +200,7 @@ public abstract class Downloader implements IDownloader {
 	 * 	<dd>任务处于{@linkplain #statusDownload() 下载状态}</dd>
 	 * </dl>
 	 * 
-	 * @return true-可以下载；false-不能下载；
+	 * @return 是否可以下载
 	 */
 	protected final boolean downloadable() {
 		return
@@ -209,7 +210,7 @@ public abstract class Downloader implements IDownloader {
 	}
 	
 	/**
-	 * <p>标记任务完成</p>
+	 * <p>检测并且标记任务完成</p>
 	 */
 	private final void checkAndMarkCompleted() {
 		if(this.completed) {

@@ -5,10 +5,9 @@ import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.Random;
 
 import com.acgist.snail.config.CryptConfig;
-import com.acgist.snail.config.SystemConfig;
+import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.NumberUtils;
 
 /**
@@ -29,14 +28,11 @@ public final class MSEKeyPairBuilder {
 	 */
 	private static final String FORMAT = "MSE";
 
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private MSEKeyPairBuilder() {
 	}
 	
 	/**
-	 * <p>创建MSE密钥对Builder</p>
+	 * <p>新建MSE密钥对Builder</p>
 	 * 
 	 * @return MSE密钥对Builder
 	 */
@@ -45,7 +41,7 @@ public final class MSEKeyPairBuilder {
 	}
 
 	/**
-	 * <p>创建密钥对</p>
+	 * <p>新建密钥对</p>
 	 * 
 	 * @return 密钥对
 	 */
@@ -68,17 +64,12 @@ public final class MSEKeyPairBuilder {
 		 * <p>公钥数据</p>
 		 */
 		private final BigInteger value;
-		/**
-		 * <p>公钥数据</p>
-		 */
-		private final byte[] encoded;
 
 		/**
 		 * @param value 公钥数据
 		 */
 		private MSEPublicKey(BigInteger value) {
 			this.value = value;
-			this.encoded = NumberUtils.encodeBigInteger(value, CryptConfig.PUBLIC_KEY_LENGTH);
 		}
 
 		@Override
@@ -93,7 +84,7 @@ public final class MSEKeyPairBuilder {
 
 		@Override
 		public byte[] getEncoded() {
-			return this.encoded;
+			return NumberUtils.encodeBigInteger(this.value, CryptConfig.PUBLIC_KEY_LENGTH);
 		}
 		
 		@Override
@@ -121,32 +112,24 @@ public final class MSEKeyPairBuilder {
 		 */
 		private final MSEPublicKey publicKey;
 
-		/**
-		 * <p>禁止创建实例</p>
-		 */
 		private MSEPrivateKey() {
 			this.value = this.buildPrivateKey();
 			this.publicKey = this.buildPublicKey();
 		}
 
 		/**
-		 * <p>创建私钥数据</p>
+		 * <p>新建私钥数据</p>
 		 * <pre>Xa Xb</pre>
 		 * 
 		 * @return 私钥数据
 		 */
 		private BigInteger buildPrivateKey() {
-			// 安全随机数性能问题
-			final Random random = NumberUtils.random();
-			final byte[] bytes = new byte[CryptConfig.PRIVATE_KEY_LENGTH];
-			for (int index = 0; index < CryptConfig.PRIVATE_KEY_LENGTH; index++) {
-				bytes[index] = (byte) random.nextInt(SystemConfig.UNSIGNED_BYTE_MAX);
-			}
+			final byte[] bytes = ArrayUtils.random(CryptConfig.PRIVATE_KEY_LENGTH);
 			return NumberUtils.decodeBigInteger(ByteBuffer.wrap(bytes), CryptConfig.PRIVATE_KEY_LENGTH);
 		}
 		
 		/**
-		 * <p>创建公钥</p>
+		 * <p>新建公钥</p>
 		 * <pre>
 		 * Pubkey of A: Ya = (G^Xa) mod P
 		 * Pubkey of B: Yb = (G^Xb) mod P
@@ -159,7 +142,7 @@ public final class MSEKeyPairBuilder {
 		}
 		
 		/**
-		 * <p>创建DH Secret</p>
+		 * <p>新建DH Secret</p>
 		 * <pre>DH Secret: S = (Ya^Xb) mod P = (Yb^Xa) mod P</pre>
 		 * 
 		 * @param publicKey 公钥数据

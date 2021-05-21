@@ -1,6 +1,7 @@
 package com.acgist.snail.net.torrent.lsd;
 
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -10,12 +11,10 @@ import com.acgist.snail.config.PeerConfig;
 import com.acgist.snail.context.PeerContext;
 import com.acgist.snail.context.TorrentContext;
 import com.acgist.snail.net.UdpMessageHandler;
-import com.acgist.snail.net.codec.IMessageCodec;
+import com.acgist.snail.net.codec.IMessageDecoder;
 import com.acgist.snail.net.codec.StringMessageCodec;
-import com.acgist.snail.net.torrent.peer.PeerService;
 import com.acgist.snail.pojo.session.TorrentSession;
 import com.acgist.snail.pojo.wrapper.HeaderWrapper;
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.CollectionUtils;
 import com.acgist.snail.utils.StringUtils;
 
@@ -26,7 +25,7 @@ import com.acgist.snail.utils.StringUtils;
  * 
  * @author acgist
  */
-public final class LocalServiceDiscoveryMessageHandler extends UdpMessageHandler implements IMessageCodec<String> {
+public final class LocalServiceDiscoveryMessageHandler extends UdpMessageHandler implements IMessageDecoder<String> {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(LocalServiceDiscoveryMessageHandler.class);
 
@@ -48,8 +47,21 @@ public final class LocalServiceDiscoveryMessageHandler extends UdpMessageHandler
 	 */
 	public static final String HEADER_INFOHASH = "Infohash";
 
+	/**
+	 * <p>服务端</p>
+	 */
 	public LocalServiceDiscoveryMessageHandler() {
-		this.messageCodec = new StringMessageCodec(this);
+		this(null);
+	}
+	
+	/**
+	 * <p>客户端</p>
+	 * 
+	 * @param socketAddress 地址
+	 */
+	public LocalServiceDiscoveryMessageHandler(InetSocketAddress socketAddress) {
+		super(socketAddress);
+		this.messageDecoder = new StringMessageCodec(this);
 	}
 	
 	@Override
@@ -61,7 +73,7 @@ public final class LocalServiceDiscoveryMessageHandler extends UdpMessageHandler
 		final List<String> infoHashHexs = headers.headerList(HEADER_INFOHASH);
 		if(StringUtils.isNumeric(port) && CollectionUtils.isNotEmpty(infoHashHexs)) {
 			final byte[] peerId = StringUtils.unhex(cookie);
-			if(ArrayUtils.equals(peerId, PeerService.getInstance().peerId())) {
+			if(Arrays.equals(peerId, PeerConfig.getInstance().peerId())) {
 				LOGGER.debug("本地发现消息处理失败：忽略本机");
 			} else {
 				infoHashHexs.forEach(infoHashHex -> this.doInfoHash(host, port, infoHashHex));

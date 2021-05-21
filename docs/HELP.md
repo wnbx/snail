@@ -4,8 +4,9 @@
 
 ## 目录
 
-* [隐私](#隐私)
-	* [你的行为](#你的行为)
+* [用户](#用户)
+	* [隐私](#隐私)
+	* [捐赠](#捐赠)
 * [稳定版本](#稳定版本)
 * [使用](#使用)
 	* [环境](#环境)
@@ -38,12 +39,12 @@
 	* [启动后没有出现GUI界面](#启动后没有出现gui界面)
 * [开发帮助](#开发帮助)
 
-## 隐私
+## 用户
 
 * 除了下载任务以外不会采集其他任何信息
 * 除了用于必要的下载和上传任务而进行数据传输外不会有其他任何的数据传输
 
-### 你的行为
+### 隐私
 
 *谁可能知道你的下载任务？*
 
@@ -55,33 +56,34 @@
 * 连接的Tracker服务器
 * 局域网内的本地发现服务
 
+### 捐赠
+
+软件完全免费使用，捐赠全是用户自愿。
+
 ## 稳定版本
 
-[最新稳定版本下载](https://gitee.com/acgist/snail/attach_files)（解压可以直接运行）
+[最新稳定版本下载](https://gitee.com/acgist/snail/attach_files)
 
 ### 附件说明
 
 |文件|描述|
 |:--|:--|
-|SnailLauncher.exe|Windows启动器|
-|SnailIcon-v1.0.zip|图标字体|
-|snail-mac-vx.x.x.zip|Mac稳定版|
-|snail-linux-vx.x.x.zip|Linux稳定版|
-|snail-windows-vx.x.x.zip|Windows稳定版|
+|snail-x.x.x.msi|Win安装版|
+|snail-x.x.x.pkg|Mac安装版|
+|snail-x.x.x.rpm|Linux安装版|
+|snail-win-x.x.x-without-jre.tar|Win绿色版|
+|snail-mac-x.x.x-without-jre.tar|Mac绿色版|
+|snail-linux-x.x.x-without-jre.tar|Linux绿色版|
 
-* 下载对应系统稳定版解压即可运行
-* 不用下载Windows启动器和图标字体
-* 带有`-without-jre`字样版本需要自己安装`Java`运行环境
+* 带有`-without-jre`绿色版需要自己安装`Java`运行环境
 
 ## 使用
 
 ### 环境
 
-Java：11+
-
-Maven：3.6.0+
-
-系统支持：win、mac、linux
+[![Java](https://img.shields.io/badge/dynamic/xml?style=flat-square&label=Java&url=https://raw.githubusercontent.com/acgist/snail/master/pom.xml&query=//*[local-name()='java.version']&cacheSeconds=3600)](http://openjdk.java.net/)
+[![Maven](https://img.shields.io/badge/Maven-3.6.0+-007EC6?style=flat-square)](https://maven.apache.org/)
+![系统](https://img.shields.io/badge/系统-win%20%7C%20mac%20%7C%20linux-007EC6?style=flat-square)
 
 ### 编译
 
@@ -95,23 +97,20 @@ mvn clean package -P release -D skipTests
 mvn clean package -P release -D skipTests -D javafx.platform=win|mac|linux
 ```
 
-> 推荐使用[稳定版](https://gitee.com/acgist/snail/releases)编译
+> 推荐使用[Release](https://gitee.com/acgist/snail/releases)编译
 
 ### 乱码
 
-Windows控制台乱码设置编码：`chcp 65001`
-
-添加启动参数：`-D file.encoding=UTF-8`
+* Windows控制台乱码设置编码：`chcp 65001`
+* 添加启动参数：`-D file.encoding=UTF-8`
 
 ### 运行
 
 ```bash
-# Linux
 java -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
-
-# Windows
-javaw -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
 ```
+
+> Windows可以使用`javaw`命令
 
 ### 统计
 
@@ -119,11 +118,9 @@ javaw -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
 
 ### 进阶
 
-问题建议：`F1`
-
-统计面板：`F12`
-
-下载界面、新建下载界面支持拖拽操作：下载链接、种子文件
+* 问题建议：`F1`
+* 统计面板：`F12`
+* 下载界面、新建下载界面支持拖拽操作：下载链接、种子文件
 
 ## 视频播放
 
@@ -137,11 +134,7 @@ javaw -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
 
 ### 边下边播
 
-可以指定优先下载位置：
-
-```java
-TorrentSession#piecePos(int)
-```
+[指定优先下载位置](./GUI.md#piece统计)
 
 ## BT任务
 
@@ -170,9 +163,9 @@ BT任务上传速度是下载速度的四分之一，任务只要开始下载都
 
 * 网络故障
 * 种子损坏
-* 无人分享（[做种](./GUI.md#统计-来源统计)）
-* 任务文件不完整（[健康度](./GUI.md#统计-piece统计)）
-* 没有可用的[Tracker服务器](./GUI.md#统计-tracker统计)和[DHT网络节点](./GUI.md#统计-节点统计)
+* 无人分享（[做种](./GUI.md#来源统计)）
+* 任务文件不完整（[健康度](./GUI.md#piece统计)）
+* 没有可用的[Tracker服务器](./GUI.md#tracker统计)和[DHT网络节点](./GUI.md#节点统计)
 
 ### BT文件校验
 
@@ -262,11 +255,7 @@ BT文件是分片下载的，部分任务会存在一个分片里面包含多个
 使用FTP、HLS、HTTP下载大文件时如果出现内存溢出，建议优化JVM参数：`-XX:NewRatio=2 -XX:SurvivorRatio=2`
 
 ```bash
-# Linux
 java -server -Xms128m -Xmx256m -XX:NewRatio=2 -XX:SurvivorRatio=2 -jar snail.javafx-{version}.jar
-
-# Windows
-javaw -server -Xms128m -Xmx256m -XX:NewRatio=2 -XX:SurvivorRatio=2 -jar snail.javafx-{version}.jar
 ```
 
 或者调小磁盘缓存
@@ -277,7 +266,7 @@ javaw -server -Xms128m -Xmx256m -XX:NewRatio=2 -XX:SurvivorRatio=2 -jar snail.ja
 
 ### 启动后没有出现GUI界面
 
-可以查看端口`16888`和`18888`是否被占用了，查看命令：
+* 可以查看端口`16888`和`18888`是否占用：
 
 ```bash
 # Linux
@@ -296,6 +285,8 @@ tasklist | findstr pid
 ```
 
 > pid：查询进程ID
+
+* 端口未被占用可以试试使用管理用户权限运行
 
 ## 开发帮助
 

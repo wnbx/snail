@@ -28,12 +28,7 @@ public final class HttpProtocol extends Protocol {
 	private HttpHeaderWrapper httpHeaderWrapper;
 	
 	private HttpProtocol() {
-		super(Type.HTTP);
-	}
-	
-	@Override
-	public String name() {
-		return "HTTP";
+		super(Type.HTTP, "HTTP");
 	}
 	
 	@Override
@@ -51,13 +46,9 @@ public final class HttpProtocol extends Protocol {
 		this.buildHttpHeader();
 	}
 	
-	/**
-	 * {@inheritDoc}
-	 * 
-	 * <p>优先使用头部信息中的文件名称</p>
-	 */
 	@Override
 	protected String buildFileName() throws DownloadException {
+		// 优先使用头部信息中的文件名称
 		final String defaultName = super.buildFileName();
 		return this.httpHeaderWrapper.fileName(defaultName);
 	}
@@ -69,8 +60,8 @@ public final class HttpProtocol extends Protocol {
 	
 	@Override
 	protected void release(boolean success) {
-		super.release(success);
 		this.httpHeaderWrapper = null;
+		super.release(success);
 	}
 
 	/**

@@ -49,14 +49,11 @@ public final class XML {
 	 */
 	private Document document;
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private XML() {
 	}
 	
 	/**
-	 * <p>创建XML</p>
+	 * <p>新建XML</p>
 	 * 
 	 * @return XML
 	 */
@@ -66,7 +63,7 @@ public final class XML {
 		try {
 			xml.document = factory.newDocumentBuilder().newDocument();
 		} catch (ParserConfigurationException e) {
-			LOGGER.error("创建XML异常", e);
+			LOGGER.error("新建XML异常", e);
 		}
 		return xml;
 	}
@@ -109,14 +106,13 @@ public final class XML {
 	}
 	
 	/**
-	 * <p>创建{@link DocumentBuilderFactory}</p>
+	 * <p>新建文档构造工厂</p>
 	 * 
 	 * @return {@link DocumentBuilderFactory}
 	 */
 	private static final DocumentBuilderFactory buildFactory() {
 		final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		try {
-			// 防止实体注入
 			factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
 			factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -124,12 +120,14 @@ public final class XML {
 			factory.setXIncludeAware(false);
 			factory.setExpandEntityReferences(false);
 		} catch (ParserConfigurationException e) {
-			LOGGER.error("创建DocumentBuilderFactory异常", e);
+			LOGGER.error("新建DocumentBuilderFactory异常", e);
 		}
 		return factory;
 	}
 
 	/**
+	 * <p>获取文档</p>
+	 * 
 	 * @return 文档
 	 */
 	public Document document() {
@@ -137,7 +135,7 @@ public final class XML {
 	}
 	
 	/**
-	 * <p>创建节点</p>
+	 * <p>新建节点</p>
 	 * 
 	 * @param node 上级节点
 	 * @param name 节点名称
@@ -151,7 +149,7 @@ public final class XML {
 	}
 	
 	/**
-	 * <p>创建节点</p>
+	 * <p>新建节点</p>
 	 * 
 	 * @param node 上级节点
 	 * @param name 节点名称
@@ -166,7 +164,7 @@ public final class XML {
 	}
 	
 	/**
-	 * <p>创建节点</p>
+	 * <p>新建节点</p>
 	 * 
 	 * @param node 上级节点
 	 * @param name 节点名称
@@ -181,7 +179,7 @@ public final class XML {
 	}
 	
 	/**
-	 * <p>创建节点</p>
+	 * <p>新建节点</p>
 	 * 
 	 * @param node 上级节点
 	 * @param name 节点名称
@@ -261,11 +259,11 @@ public final class XML {
 	 * @return XML
 	 */
 	public String xml(boolean format) {
-		try(final Writer writer = new StringWriter()) { // 可以不用关闭
+		try(final Writer writer = new StringWriter()) {
 			final DOMImplementationRegistry registry = DOMImplementationRegistry.newInstance();
-			final DOMImplementationLS ementation = (DOMImplementationLS) registry.getDOMImplementation("LS");
-			final LSOutput output = ementation.createLSOutput();
-			final LSSerializer serializer = ementation.createLSSerializer();
+			final DOMImplementationLS domImplementation = (DOMImplementationLS) registry.getDOMImplementation("LS");
+			final LSOutput output = domImplementation.createLSOutput();
+			final LSSerializer serializer = domImplementation.createLSSerializer();
 			output.setEncoding(SystemConfig.DEFAULT_CHARSET);
 			output.setCharacterStream(writer);
 			if(format) {

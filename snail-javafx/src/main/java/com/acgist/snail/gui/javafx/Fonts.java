@@ -1,5 +1,7 @@
 package com.acgist.snail.gui.javafx;
 
+import java.io.IOException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -191,7 +193,7 @@ public final class Fonts {
 			LOGGER.debug("加载字体：{}-{}", FONT_NAME, FONT_PATH);
 			try(final var input = Fonts.class.getResourceAsStream(FONT_PATH)) {
 				Font.loadFont(input, FONT_SIZE);
-			} catch (Exception e) {
+			} catch (IOException e) {
 				LOGGER.error("加载字体异常", e);
 			}
 		}
@@ -219,7 +221,7 @@ public final class Fonts {
 			// 设置字体
 			iconLabel.setFont(Font.font(FONT_NAME));
 			// 添加样式
-			iconLabel.getStyleClass().add(Themes.CLASS_SNAIL_ICON);
+			Themes.applyClass(iconLabel, Themes.CLASS_SNAIL_ICON);
 			return iconLabel;
 		}
 		

@@ -1,6 +1,7 @@
 package com.acgist.snail.net.torrent.utp;
 
 import java.net.InetSocketAddress;
+import java.nio.channels.DatagramChannel;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -9,7 +10,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.context.MessageHandlerContext;
 import com.acgist.snail.context.SystemThreadContext;
+import com.acgist.snail.net.IChannelHandler;
 import com.acgist.snail.net.UdpMessageHandler;
 
 /**
@@ -18,7 +21,7 @@ import com.acgist.snail.net.UdpMessageHandler;
  * 
  * @author acgist
  */
-public final class UtpService {
+public final class UtpService implements IChannelHandler<DatagramChannel> {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(UtpService.class);
 	
@@ -29,52 +32,59 @@ public final class UtpService {
 	}
 	
 	/**
-	 * <p>UTP超时定时任务执行周期（秒）：{@value}</p>
+	 * <p>UTP超时执行周期（秒）：{@value}</p>
 	 */
-	private static final int UTP_INTERVAL = 10;
+	private static final int UTP_TIMEOUT_INTERVAL = 10;
 	
 	/**
 	 * <p>连接ID</p>
 	 */
-	private int connectionId = 0;
+	private short connectionId = (short) System.currentTimeMillis();
 	/**
-	 * <p>UTP消息代理</p>
-	 * <p>{@link #buildKey(short, InetSocketAddress)}=消息代理</p>
+	 * <p>UDP通道</p>
 	 */
-	private final Map<String, UtpMessageHandler> utpMessageHandlers = new ConcurrentHashMap<>();
+	private DatagramChannel channel;
+	/**
+	 * <p>消息代理上下文</p>
+	 */
+	private final MessageHandlerContext context;
+	/**
+	 * <p>UTP消息代理列表</p>
+	 * <p>连接Key=消息代理</p>
+	 * 
+	 * @see #buildKey(short, InetSocketAddress)
+	 */
+	private final Map<String, UtpMessageHandler> utpMessageHandlers;
 	
 	private UtpService() {
-		this.register();
-	}
-	
-	/**
-	 * <p>注册UTP服务</p>
-	 */
-	private void register() {
-		LOGGER.debug("注册UTP服务：定时任务");
-		SystemThreadContext.timerFixedDelay(
-			UTP_INTERVAL,
-			UTP_INTERVAL,
+		this.context = MessageHandlerContext.getInstance();
+		this.utpMessageHandlers = new ConcurrentHashMap<>();
+		SystemThreadContext.timerAtFixedDelay(
+			UTP_TIMEOUT_INTERVAL,
+			UTP_TIMEOUT_INTERVAL,
 			TimeUnit.SECONDS,
 			this::timeout
 		);
 	}
 	
+	@Override
+	public void handle(DatagramChannel channel) {
+		this.channel = channel;
+	}
+	
 	/**
 	 * <p>获取连接ID</p>
-	 * <p>每次获取递增</p>
 	 * 
 	 * @return 连接ID
 	 */
 	public short connectionId() {
 		synchronized (this) {
-			return (short) connectionId++;
+			return this.connectionId++;
 		}
 	}
 	
 	/**
 	 * <p>获取UTP消息代理</p>
-	 * <p>如果已经存在直接返回，否者创建并返回。</p>
 	 * 
 	 * @param connectionId 连接ID
 	 * @param socketAddress 连接地址
@@ -83,11 +93,15 @@ public final class UtpService {
 	 */
 	public UdpMessageHandler get(short connectionId, InetSocketAddress socketAddress) {
 		final String key = this.buildKey(connectionId, socketAddress);
-		final UtpMessageHandler utpMessageHandler = this.utpMessageHandlers.get(key);
+		UtpMessageHandler utpMessageHandler = this.utpMessageHandlers.get(key);
 		if(utpMessageHandler != null) {
 			return utpMessageHandler;
 		}
-		return new UtpMessageHandler(connectionId, socketAddress);
+		utpMessageHandler = new UtpMessageHandler(connectionId, socketAddress);
+		utpMessageHandler.handle(this.channel);
+		// 只需要管理服务端连接
+		this.context.newInstance(utpMessageHandler);
+		return utpMessageHandler;
 	}
 	
 	/**
@@ -113,38 +127,33 @@ public final class UtpService {
 	}
 	
 	/**
-	 * <p>生成UTP消息代理key</p>
-	 * <p>key = 地址 + 端口 + connectionId</p>
+	 * <p>生成UTP消息代理连接Key</p>
 	 * 
 	 * @param connectionId 连接ID
 	 * @param socketAddress 请求地址
 	 * 
-	 * @return key
+	 * @return 连接Key
 	 */
-	public String buildKey(short connectionId, InetSocketAddress socketAddress) {
+	String buildKey(short connectionId, InetSocketAddress socketAddress) {
 		return socketAddress.getHostString() + socketAddress.getPort() + connectionId;
 	}
 	
 	/**
 	 * <p>处理超时UTP消息</p>
 	 * <p>如果消息代理可用：重新发送超时消息</p>
-	 * <p>如果消息代理不可用：关闭消息代理</p>
+	 * <p>如果消息代理关闭：移除消息代理</p>
 	 */
 	private void timeout() {
 		LOGGER.debug("处理超时UTP消息");
 		synchronized (this.utpMessageHandlers) {
 			try {
 				this.utpMessageHandlers.values().stream()
-					.filter(handler -> {
-						if(handler.available()) { // 消息代理可用：重试
-							handler.timeoutRetry();
-							return false;
-						} else { // 消息代理不可用：关闭
-							return true;
-						}
-					})
-					.collect(Collectors.toList()) // 转换List再关闭：防止关闭时删除消息代理产生异常
-					.forEach(value -> value.close());
+					// 超时重试
+					.filter(UtpMessageHandler::timeoutRetry)
+					// 转换List关闭：防止关闭删除消息代理产生异常
+					.collect(Collectors.toList())
+					// 已经关闭：直接移除
+					.forEach(this::remove);
 			} catch (Exception e) {
 				LOGGER.error("处理超时UTP消息异常", e);
 			}

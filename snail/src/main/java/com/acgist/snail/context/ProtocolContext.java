@@ -33,16 +33,17 @@ public final class ProtocolContext implements IContext {
 	
 	/**
 	 * <p>下载协议</p>
-	 * <p>不添加同步锁：协议注册完成后调用{@link #available(boolean)}设置可用</p>
 	 */
 	private final List<Protocol> protocols;
 	/**
-	 * <p>可用锁：协议没有加载完成时阻塞所有获取协议的线程</p>
+	 * <p>可用状态锁</p>
+	 * <p>协议没有加载完成阻塞所有获取协议线程</p>
 	 */
-	private final AtomicBoolean availableLock = new AtomicBoolean(false);
+	private final AtomicBoolean availableLock;
 	
 	private ProtocolContext() {
 		this.protocols = new ArrayList<>();
+		this.availableLock = new AtomicBoolean(false);
 	}
 	
 	/**
@@ -54,16 +55,20 @@ public final class ProtocolContext implements IContext {
 	 */
 	public ProtocolContext register(Protocol protocol) {
 		if(this.protocols.contains(protocol)) {
-			LOGGER.debug("下载协议已经注册：{}", protocol.name());
+			if(LOGGER.isDebugEnabled()) {
+				LOGGER.debug("下载协议已经注册：{}", protocol.name());
+			}
 		} else {
-			LOGGER.info("注册下载协议：{}", protocol.name());
+			if(LOGGER.isInfoEnabled()) {
+				LOGGER.info("注册下载协议：{}", protocol.name());
+			}
 			this.protocols.add(protocol);
 		}
 		return this;
 	}
 	
 	/**
-	 * <p>创建下载器</p>
+	 * <p>新建下载器</p>
 	 * 
 	 * @param taskSession 任务信息
 	 * 
@@ -74,7 +79,7 @@ public final class ProtocolContext implements IContext {
 	public IDownloader buildDownloader(ITaskSession taskSession) throws DownloadException {
 		final var type = taskSession.getType();
 		final Optional<Protocol> optional = this.protocols.stream()
-			.filter(protocol -> protocol.available())
+			.filter(Protocol::available)
 			.filter(protocol -> protocol.type() == type)
 			.findFirst();
 		if(optional.isEmpty()) {
@@ -109,7 +114,7 @@ public final class ProtocolContext implements IContext {
 	 * 
 	 * @param url 下载链接
 	 * 
-	 * @return true-支持；false-不支持；
+	 * @return 是否支持
 	 */
 	public boolean support(String url) {
 		return this.protocol(url).isPresent();
@@ -128,7 +133,7 @@ public final class ProtocolContext implements IContext {
 		}
 		final String verify = url.trim();
 		return this.protocols.stream()
-			.filter(protocol -> protocol.available())
+			.filter(Protocol::available)
 			.filter(protocol -> protocol.verify(verify))
 			.findFirst();
 	}
@@ -147,8 +152,8 @@ public final class ProtocolContext implements IContext {
 					try {
 						this.availableLock.wait(Short.MAX_VALUE);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 				}
 			}

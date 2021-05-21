@@ -48,8 +48,8 @@
 				</TableColumn>
 				<!--
 				下载进度：
-					下载：20%（2G/4G）
-					完成：100%（4G）
+					下载：200MB/4G
+					完成：4G
 				-->
 				<TableColumn fx:id="progress" text="进度" styleClass="progress">
 					<cellValueFactory>
@@ -86,10 +86,8 @@
 				<Button fx:id="completed" text="完成" onAction="#handleCompletedAction" />
 			</HBox>
 			<HBox fx:id="statuses" styleClass="statuses">
-				<Label fx:id="downloadStatus" styleClass="snail-icon" text="↓" />
-				<Label fx:id="downloadBuffer" text="0KB/S" />
+				<Label fx:id="uploadBuffer" text="0B/S" />
 				<Label fx:id="uploadStatus" styleClass="snail-icon" text="↑" />
-				<Label fx:id="uploadBuffer" text="0KB/S" />
 			</HBox>
 		</HBox>
 	</bottom>

@@ -6,22 +6,23 @@
 
 <p align="center">
 	<a target="_blank" href="https://openjdk.java.net">
-		<img alt="Java" src="https://img.shields.io/badge/Java-11-yellow.svg?style=flat-square" />
+		<img alt="Java" src="https://img.shields.io/badge/dynamic/xml?style=flat-square&label=Java&color=blueviolet&url=https://raw.githubusercontent.com/acgist/snail/master/pom.xml&query=//*[local-name()='java.version']&cacheSeconds=3600" />
 	</a>
 	<a target="_blank" href="https://openjfx.io">
-		<img alt="JavaFX" src="https://img.shields.io/badge/JavaFX-11-blueviolet.svg?style=flat-square" />
+		<img alt="JavaFX" src="https://img.shields.io/badge/dynamic/xml?style=flat-square&label=JavaFX&color=blueviolet&url=https://raw.githubusercontent.com/acgist/snail/master/pom.xml&query=//*[local-name()='javafx.version']&cacheSeconds=3600" />
 	</a>
 	<a target="_blank" href="https://github.com/acgist/snail">
-		<img alt="GitHub stars" src="https://img.shields.io/github/stars/acgist/snail?color=red&style=flat-square" />
+		<img alt="GitHub stars" src="https://img.shields.io/github/stars/acgist/snail?style=flat-square&label=Github%20stars&color=crimson" />
 	</a>
 	<a target="_blank" href="https://gitee.com/acgist/snail">
-		<img alt="Gitee stars" src="https://gitee.com/acgist/snail/badge/star.svg?theme=dark" />
+		<img alt="Gitee stars" src="https://img.shields.io/badge/dynamic/json?style=flat-square&label=Gitee%20stars&color=crimson&url=https://gitee.com/api/v5/repos/acgist/snail&query=$.stargazers_count&cacheSeconds=3600" />
 	</a>
 	<br />
-	<img alt="GitHub Workflow Status" src="https://img.shields.io/github/workflow/status/acgist/snail/build?style=flat-square">
-	<img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/acgist/snail?style=flat-square" />
-	<img alt="GitHub code size in bytes" src="https://img.shields.io/github/languages/code-size/acgist/snail?color=crimson&style=flat-square" />
-	<img alt="GitHub" src="https://img.shields.io/github/license/acgist/snail?style=flat-square" />
+	<img alt="GitHub Workflow Status" src="https://img.shields.io/github/workflow/status/acgist/snail/build?style=flat-square" />
+	<img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/acgist/snail?style=flat-square&color=orange" />
+	<img alt="Maven Central" src="https://img.shields.io/maven-central/v/com.acgist/snail?style=flat-square&color=orange" />
+	<img alt="GitHub code size in bytes" src="https://img.shields.io/github/languages/code-size/acgist/snail?style=flat-square&color=blue" />
+	<img alt="GitHub" src="https://img.shields.io/github/license/acgist/snail?style=flat-square&color=blue" />
 </p>
 
 ----
@@ -33,31 +34,27 @@
 |snail|下载核心|
 |snail-javafx|电脑界面|
 
+> 电脑界面只是方便操作，下载核心包含所有下载协议，可以完全独立使用。
+
 ## 使用
 
-稳定版本下载：[snail-windows.zip](https://gitee.com/acgist/snail/attach_files)（解压可以直接运行）
+[稳定版本下载](https://gitee.com/acgist/snail/attach_files)
 
-> 稳定版本提供`mac`、`linux`、`windows`三个版本
-
-#### 编译
+### 编译
 
 ```bash
 mvn clean package -P release -D skipTests
 ```
 
-> 推荐使用[稳定版](https://gitee.com/acgist/snail/releases)编译
+> 推荐使用[Release](https://gitee.com/acgist/snail/releases)编译
 
-#### Gui
+### Gui
 
 ```bash
-# Linux
 java -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
-
-# Windows
-javaw -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
 ```
 
-#### Maven
+### Maven
 
 ```xml
 <dependency>
@@ -71,30 +68,21 @@ javaw -server -Xms128m -Xmx256m -jar snail.javafx-{version}.jar
 final Snail snail = SnailBuilder.getInstance()
 	.enableAllProtocol()
 	.buildSync();
+// BT任务需要注册文件选择事件
+// GuiContext.register(new MultifileEventAdapter());
 snail.download("https://www.acgist.com");
 snail.lockDownload();
 ```
+
+### 帮助
 
 [开发帮助](./docs/API.md)
 
 [使用帮助](./docs/HELP.md)
 
-## 开发进度
+## 依赖
 
-|功能|进度|
-|:--|:--:|
-|BT|√|
-|FTP|√|
-|HLS|√|
-|HTTP|√|
-
-*√=完成、○-进行中、×-未开始、?-待定*
-
-> [协议进度](./docs/PROTOCOL.md)
-
-## 依赖项目
-
-|软件|许可|
+|项目|许可|
 |:--|:--|
 |[slf4j](https://www.slf4j.org)|[MIT](https://www.slf4j.org/license.html)|
 |[JavaFX](https://wiki.openjdk.java.net/display/OpenJFX)|[GPLv2 + CE](https://openjdk.java.net/legal/gplv2+ce.html)|
@@ -102,27 +90,33 @@ snail.lockDownload();
 
 ## 其他
 
-#### GIT
+### Git
 
 GITEE：[https://gitee.com/acgist/snail](https://gitee.com/acgist/snail)
 
 GITHUB：[https://github.com/acgist/snail](https://github.com/acgist/snail)
 
-#### 界面
+### 协议
+
+[协议信息](./docs/PROTOCOL.md)
+
+### 界面
 
 ![蜗牛](./docs/gui/main.png "蜗牛")
 ![统计](./docs/gui/statistics-piece.png "统计")
 
 [界面操作](./docs/GUI.md)
 
-#### 更多
-
-[https://www.acgist.com/snail](https://www.acgist.com/snail)
-
-## 贡献
+### 贡献
 
 提交PR前请阅读[代码规范](./CODE_OF_CONDUCT.md)、[贡献规范](./CONTRIBUTING.md)
 
 问题和建议请提交到[Issues](https://gitee.com/acgist/snail/issues)，提交前请阅读[贡献规范](./CONTRIBUTING.md)。
 
 谢谢！
+
+### 捐赠
+
+[捐赠](https://www.acgist.com/sponsor)
+
+[服务器](https://www.acgist.com/collect/server)

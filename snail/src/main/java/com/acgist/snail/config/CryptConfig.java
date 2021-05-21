@@ -65,11 +65,11 @@ public final class CryptConfig {
 		 */
 		PLAINTEXT(false, CryptAlgo.PLAINTEXT.provide),
 		/**
-		 * <p>兼容：偏爱明文</p>
+		 * <p>偏爱明文</p>
 		 */
 		PREFER_PLAINTEXT(false, CryptAlgo.PLAINTEXT.provide | CryptAlgo.ARC4.provide),
 		/**
-		 * <p>兼容：偏爱加密</p>
+		 * <p>偏爱加密</p>
 		 */
 		PREFER_ENCRYPT(true, CryptAlgo.ARC4.provide | CryptAlgo.PLAINTEXT.provide),
 		/**
@@ -83,7 +83,7 @@ public final class CryptConfig {
 		private final boolean crypt;
 		/**
 		 * <p>加密模式：crypto_provide</p>
-		 * <p>客户端可能支持多种加密算法，双方协商最优加密算法。</p>
+		 * <p>支持多种加密算法：双方协商最优加密算法</p>
 		 * 
 		 * @see CryptAlgo#provide
 		 */
@@ -101,7 +101,7 @@ public final class CryptConfig {
 		/**
 		 * <p>判断是否加密</p>
 		 * 
-		 * @return true-加密；false-明文；
+		 * @return 是否加密
 		 */
 		public final boolean crypt() {
 			return this.crypt;
@@ -136,25 +136,25 @@ public final class CryptConfig {
 	/**
 	 * <p>私钥长度：{@value}</p>
 	 * <p>随机长度：128~180</p>
-	 * <p>超过180只能增加计算时间，并不能提高安全性。</p>
 	 * <p>推荐长度：160</p>
+	 * <p>超过180只能增加计算时间：并不能提高安全性</p>
 	 */
-	public static final int PRIVATE_KEY_LENGTH = 20;
+	public static final int PRIVATE_KEY_LENGTH = 128;
 	/**
 	 * <p>最大随机填充长度：{@value}</p>
 	 */
 	public static final int PADDING_MAX_LENGTH = 512;
 	/**
-	 * <p>VC长度：{@value}</p>
-	 * 
-	 * @see #VC
-	 */
-	public static final int VC_LENGTH = 8;
-	/**
 	 * <p>VC数据</p>
 	 * <p>默认填充：0x00</p>
 	 */
 	public static final byte[] VC = {0, 0, 0, 0, 0, 0, 0, 0};
+	/**
+	 * <p>VC长度</p>
+	 * 
+	 * @see #VC
+	 */
+	public static final int VC_LENGTH = VC.length;
 	/**
 	 * <p>默认加密策略</p>
 	 * 
@@ -166,9 +166,6 @@ public final class CryptConfig {
 		LOGGER.debug("默认加密策略：{}", CryptConfig.STRATEGY);
 	}
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private CryptConfig() {
 	}
 	

@@ -3,20 +3,22 @@ package com.acgist.snail.config;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.context.DhtContext;
 import com.acgist.snail.context.NodeContext;
 import com.acgist.snail.net.torrent.dht.request.AnnouncePeerRequest;
 import com.acgist.snail.net.torrent.dht.request.FindNodeRequest;
 import com.acgist.snail.net.torrent.dht.request.GetPeersRequest;
 import com.acgist.snail.net.torrent.dht.request.PingRequest;
+import com.acgist.snail.net.torrent.dht.response.AnnouncePeerResponse;
+import com.acgist.snail.net.torrent.dht.response.FindNodeResponse;
+import com.acgist.snail.net.torrent.dht.response.GetPeersResponse;
+import com.acgist.snail.net.torrent.dht.response.PingResponse;
 import com.acgist.snail.pojo.session.NodeSession;
-import com.acgist.snail.utils.FileUtils;
-import com.acgist.snail.utils.NumberUtils;
 import com.acgist.snail.utils.StringUtils;
 
 /**
@@ -28,16 +30,8 @@ public final class DhtConfig extends PropertiesConfig {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(DhtConfig.class);
 	
-	/**
-	 * <p>单例对象</p>
-	 */
 	private static final DhtConfig INSTANCE = new DhtConfig();
 	
-	/**
-	 * <p>获取单例对象</p>
-	 * 
-	 * @return 单例对象
-	 */
 	public static final DhtConfig getInstance() {
 		return INSTANCE;
 	}
@@ -48,7 +42,9 @@ public final class DhtConfig extends PropertiesConfig {
 	private static final String DHT_CONFIG = "/config/bt.dht.properties";
 	/**
 	 * <p>消息ID：{@value}</p>
-	 * <p>请求ID、响应ID（默认两个字节）</p>
+	 * <p>请求ID、响应ID</p>
+	 * 
+	 * @see DhtContext#buildRequestId()
 	 */
 	public static final String KEY_T = "t";
 	/**
@@ -61,8 +57,6 @@ public final class DhtConfig extends PropertiesConfig {
 	 * <p>请求消息类型、请求类型：{@value}</p>
 	 * <p>请求消息类型：{@link #KEY_Y}</p>
 	 * <p>请求类型：{@link QType}</p>
-	 * 
-	 * @see QType
 	 */
 	public static final String KEY_Q = "q";
 	/**
@@ -77,8 +71,8 @@ public final class DhtConfig extends PropertiesConfig {
 	 */
 	public static final String KEY_A = "a";
 	/**
-	 * <p>响应错误：{@value}</p>
-	 * <p>响应错误类型：{@link Map}</p>
+	 * <p>错误编码：{@value}</p>
+	 * <p>错误编码类型：{@link Map}</p>
 	 * 
 	 * @see ErrorCode
 	 */
@@ -142,8 +136,8 @@ public final class DhtConfig extends PropertiesConfig {
 	 */
 	public static final String KEY_IMPLIED_PORT = "implied_port";
 	/**
-	 * <p>自动配置（忽略端口配置）</p>
-	 * <p>使用UDP连接端口作为对等端口并支持uTP</p>
+	 * <p>自动配置：忽略端口配置</p>
+	 * <p>使用UDP连接端口作为对等端口（支持UTP）</p>
 	 */
 	public static final Integer IMPLIED_PORT_AUTO = 1;
 	/**
@@ -165,17 +159,12 @@ public final class DhtConfig extends PropertiesConfig {
 	public static final int NODE_ID_LENGTH = 20;
 	/**
 	 * <p>Node最大保存数量：{@value}</p>
-	 * <p>超过Node最大保存数量均匀剔除多余节点</p>
 	 */
 	public static final int MAX_NODE_SIZE = 1024;
 	/**
-	 * <p>DHT请求清理周期（分钟）：{@value}</p>
+	 * <p>DHT请求超时执行周期（分钟）：{@value}</p>
 	 */
-	public static final int DHT_REQUEST_CLEAN_INTERVAL = 10;
-	/**
-	 * <p>DHT响应超时：{@value}</p>
-	 */
-	public static final int DHT_TIMEOUT = SystemConfig.RECEIVE_TIMEOUT_MILLIS;
+	public static final int DHT_REQUEST_TIMEOUT_INTERVAL = 10;
 	
 	static {
 		LOGGER.debug("初始化DHT节点配置：{}", DHT_CONFIG);
@@ -184,7 +173,7 @@ public final class DhtConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>DHT请求类型</p>
+	 * <p>请求类型</p>
 	 * 
 	 * @author acgist
 	 */
@@ -194,24 +183,28 @@ public final class DhtConfig extends PropertiesConfig {
 		 * <p>ping</p>
 		 * 
 		 * @see PingRequest
+		 * @see PingResponse
 		 */
 		PING("ping"),
 		/**
 		 * <p>查找节点</p>
 		 * 
 		 * @see FindNodeRequest
+		 * @see FindNodeResponse
 		 */
 		FIND_NODE("find_node"),
 		/**
 		 * <p>查找Peer</p>
 		 * 
 		 * @see GetPeersRequest
+		 * @see GetPeersResponse
 		 */
 		GET_PEERS("get_peers"),
 		/**
 		 * <p>声明Peer</p>
 		 * 
 		 * @see AnnouncePeerRequest
+		 * @see AnnouncePeerResponse
 		 */
 		ANNOUNCE_PEER("announce_peer");
 		
@@ -256,9 +249,9 @@ public final class DhtConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>DHT响应错误</p>
-	 * <p>数据格式：{@link List}</p>
-	 * <p>信息格式：[0]=错误编码；[1]=错误描述；</p>
+	 * <p>错误编码</p>
+	 * <p>数据类型：{@link List}</p>
+	 * <p>数据格式：[0]=错误编码；[1]=错误描述；</p>
 	 * 
 	 * @author acgist
 	 */
@@ -310,9 +303,6 @@ public final class DhtConfig extends PropertiesConfig {
 	 */
 	private final Map<String, String> nodes = new LinkedHashMap<>();
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private DhtConfig() {
 		super(DHT_CONFIG);
 	}
@@ -333,9 +323,9 @@ public final class DhtConfig extends PropertiesConfig {
 	}
 
 	/**
-	 * <p>获取所有DHT节点</p>
+	 * <p>获取默认DHT节点</p>
 	 * 
-	 * @return 所有DHT节点
+	 * @return 默认DHT节点
 	 */
 	public Map<String, String> nodes() {
 		return this.nodes;
@@ -346,18 +336,16 @@ public final class DhtConfig extends PropertiesConfig {
 	 * <p>注意：如果没有启动BT任务没有必要保存</p>
 	 */
 	public void persistent() {
-		LOGGER.debug("保存DHT节点配置");
-		final var persistentNodes = NodeContext.getInstance().nodes();
-		final int size = persistentNodes.size();
-		final Random random = NumberUtils.random();
-		final var data = persistentNodes.stream()
-			.filter(NodeSession::persistentable)
-			.filter(node -> size < MAX_NODE_SIZE || random.nextInt(size) < MAX_NODE_SIZE) // 随机保存
+		final var data = NodeContext.getInstance().resize().stream()
+			.filter(NodeSession::useable)
 			.collect(Collectors.toMap(
 				node -> StringUtils.hex(node.getId()),
-				node -> node.getHost() + ":" + node.getPort()
+				node -> node.getHost() + SymbolConfig.Symbol.COLON.toString() + node.getPort()
 			));
-		this.persistent(data, FileUtils.userDirFile(DHT_CONFIG));
+		if(LOGGER.isDebugEnabled()) {
+			LOGGER.debug("保存DHT节点配置：{}", data.size());
+		}
+		this.persistent(data, DHT_CONFIG);
 	}
 	
 }

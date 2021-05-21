@@ -11,23 +11,14 @@ open module com.acgist.snail.javafx {
 	exports com.acgist.snail.gui.javafx;
 	exports com.acgist.snail.gui.javafx.window;
 	
-	//================Java================//
 	requires java.base;
-	// AWT、Swing依赖
+	requires transitive com.acgist.snail;
+	// GUI依赖：AWT/Swing/JavaFX
 	requires transitive java.desktop;
-	// JavaFX依赖
 	requires transitive java.scripting;
-	
-	//================JDK================//
-	// JavaFX依赖
 	requires transitive jdk.unsupported;
-	
-	//================JavaFX================//
 	requires transitive javafx.fxml;
 	requires transitive javafx.controls;
 	requires transitive javafx.graphics;
-
-	//================依赖================//
-	requires transitive com.acgist.snail;
 
 }

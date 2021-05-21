@@ -173,7 +173,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 	}
 	
 	/**
-	 * <p>创建扩展协议代理</p>
+	 * <p>新建扩展协议代理</p>
 	 * 
 	 * @param peerSession Peer信息
 	 * @param torrentSession BT任务信息
@@ -195,27 +195,13 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 		}
 		LOGGER.debug("处理扩展消息类型：{}", extensionType);
 		switch (extensionType) {
-		case HANDSHAKE:
-			this.handshake(buffer);
-			break;
-		case UT_PEX:
-			this.pex(buffer);
-			break;
-		case UT_METADATA:
-			this.metadata(buffer);
-			break;
-		case UT_HOLEPUNCH:
-			this.holepunch(buffer);
-			break;
-		case UPLOAD_ONLY:
-			this.uploadOnly(buffer);
-			break;
-		case LT_DONTHAVE:
-			this.dontHave(buffer);
-			break;
-		default:
-			LOGGER.warn("处理扩展消息错误（类型未适配）：{}", extensionType);
-			break;
+			case HANDSHAKE -> this.handshake(buffer);
+			case UT_PEX -> this.pex(buffer);
+			case UT_METADATA -> this.metadata(buffer);
+			case UT_HOLEPUNCH -> this.holepunch(buffer);
+			case UPLOAD_ONLY -> this.uploadOnly(buffer);
+			case LT_DONTHAVE -> this.dontHave(buffer);
+			default -> LOGGER.warn("处理扩展消息错误（类型未适配）：{}", extensionType);
 		}
 	}
 	
@@ -240,7 +226,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 		message.put(EX_V, SystemConfig.getNameEnAndVersion()); // 客户端信息（名称、版本）
 		message.put(EX_E, CryptConfig.STRATEGY.crypt() ? PREFER_ENCRYPT : PREFER_PLAINTEXT); // 偏爱加密
 		// 外网IP地址：TODO：IPv6
-		final String yourip = SystemConfig.getExternalIpAddress();
+		final String yourip = SystemConfig.getExternalIPAddress();
 		if(StringUtils.isNotEmpty(yourip)) {
 			message.put(EX_YOURIP, NumberUtils.intToBytes(NetUtils.ipToInt(yourip)));
 		}
@@ -272,17 +258,20 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 		final var decoder = BEncodeDecoder.newInstance(buffer);
 		decoder.nextMap();
 		if(decoder.isEmpty()) {
-			LOGGER.warn("处理扩展消息-握手失败（格式）：{}", decoder.oddString());
+			if(LOGGER.isWarnEnabled()) {
+				LOGGER.warn("处理扩展消息-握手失败（格式）：{}", decoder.oddString());
+			}
 			return;
 		}
 		// 获取端口
 		final Long port = decoder.getLong(EX_P);
 		if(port != null) {
+			final int newPort = port.intValue();
 			final Integer oldPort = this.peerSession.port();
 			if(oldPort == null) {
-				this.peerSession.port(port.intValue());
-			} else if(oldPort.intValue() != port.intValue()) {
-				LOGGER.debug("处理扩展消息-握手（端口不一致）：{}-{}", oldPort, port);
+				this.peerSession.port(newPort);
+			} else if(oldPort.intValue() != newPort) {
+				LOGGER.debug("处理扩展消息-握手（端口不一致）：{}-{}", oldPort, newPort);
 			}
 		}
 		// 偏爱加密
@@ -300,6 +289,14 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 		if(metadataSize != null && this.infoHash.size() <= 0) {
 			this.infoHash.size(metadataSize.intValue());
 		}
+		// 设置客户端名称
+		if(this.peerSession.unknownClientName()) {
+			final String clientName = decoder.getString(EX_V);
+			if(StringUtils.isNotEmpty(clientName)) {
+				LOGGER.debug("设置客户端名称：{}", clientName);
+				this.peerSession.clientName(clientName);
+			}
+		}
 		// 支持的扩展协议：扩展协议名称=扩展协议标识
 		final Map<String, Object> supportTypes = decoder.getMap(EX_M);
 		if(MapUtils.isNotEmpty(supportTypes)) {
@@ -312,7 +309,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 				}
 				if(extensionType != null && extensionType.support()) {
 					LOGGER.debug("处理扩展协议-握手（添加）：{}-{}", extensionType, typeId);
-					this.peerSession.addExtensionType(extensionType, typeId.byteValue());
+					this.peerSession.supportExtensionType(extensionType, typeId.byteValue());
 				} else {
 					LOGGER.debug("处理扩展协议-握手（未知协议）：{}-{}", typeValue, typeId);
 				}
@@ -329,7 +326,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 	}
 	
 	/**
-	 * <p>发送pex消息</p>
+	 * <p>发送PEX消息</p>
 	 * 
 	 * @param bytes 消息
 	 * 
@@ -342,7 +339,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 	}
 	
 	/**
-	 * <p>处理pex消息</p>
+	 * <p>处理PEX消息</p>
 	 * 
 	 * @param buffer 消息
 	 * 
@@ -479,7 +476,7 @@ public final class ExtensionMessageHandler implements IExtensionMessageHandler {
 	}
 	
 	/**
-	 * <p>创建扩展消息</p>
+	 * <p>新建扩展消息</p>
 	 * 
 	 * @param type 消息类型
 	 * @param bytes 消息数据

@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.context.TrackerContext;
 import com.acgist.snail.pojo.session.TrackerSession;
-import com.acgist.snail.utils.FileUtils;
 import com.acgist.snail.utils.StringUtils;
 
 /**
@@ -22,16 +21,8 @@ public final class TrackerConfig extends PropertiesConfig {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(TrackerConfig.class);
 	
-	/**
-	 * <p>单例对象</p>
-	 */
 	private static final TrackerConfig INSTANCE = new TrackerConfig();
 	
-	/**
-	 * <p>获取单例对象</p>
-	 * 
-	 * @return 单例对象
-	 */
 	public static final TrackerConfig getInstance() {
 		return INSTANCE;
 	}
@@ -41,14 +32,14 @@ public final class TrackerConfig extends PropertiesConfig {
 	 */
 	private static final String TRACKER_CONFIG = "/config/bt.tracker.properties";
 	/**
-	 * <p>Tracker服务器最大保存数量：{@value}</p>
-	 */
-	private static final int MAX_TRACKER_SIZE = 512;
-	/**
 	 * <p>最大请求失败次数：{@value}</p>
 	 * <p>超过最大请求失败次数标记无效</p>
 	 */
 	public static final int MAX_FAIL_TIMES = 3;
+	/**
+	 * <p>Tracker服务器最大保存数量：{@value}</p>
+	 */
+	public static final int MAX_TRACKER_SIZE = 512;
 	
 	static {
 		LOGGER.debug("初始化Tracker服务器配置：{}", TRACKER_CONFIG);
@@ -121,7 +112,7 @@ public final class TrackerConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>Tracker动作</p>
+	 * <p>动作</p>
 	 * 
 	 * @author acgist
 	 */
@@ -136,7 +127,7 @@ public final class TrackerConfig extends PropertiesConfig {
 		 */
 		ANNOUNCE(1, "announce"),
 		/**
-		 * <p>刮檫</p>
+		 * <p>刮擦</p>
 		 */
 		SCRAPE(2, "scrape"),
 		/**
@@ -181,11 +172,11 @@ public final class TrackerConfig extends PropertiesConfig {
 		}
 		
 		/**
-		 * <p>通过动作ID获取Tracker动作</p>
+		 * <p>通过动作ID获取动作</p>
 		 * 
 		 * @param id 动作ID
 		 * 
-		 * @return Tracker动作
+		 * @return 动作
 		 */
 		public static final Action of(int id) {
 			final var values = Action.values();
@@ -205,9 +196,6 @@ public final class TrackerConfig extends PropertiesConfig {
 	 */
 	private final List<String> announces = new ArrayList<>();
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private TrackerConfig() {
 		super(TRACKER_CONFIG);
 	}
@@ -227,9 +215,9 @@ public final class TrackerConfig extends PropertiesConfig {
 	}
 
 	/**
-	 * <p>获取所有Tracker服务器</p>
+	 * <p>获取默认Tracker服务器</p>
 	 * 
-	 * @return 所有Tracker服务器
+	 * @return 默认Tracker服务器
 	 */
 	public List<String> announces() {
 		return this.announces;
@@ -240,16 +228,19 @@ public final class TrackerConfig extends PropertiesConfig {
 	 * <p>注意：如果没有启动BT任务没有必要保存</p>
 	 */
 	public void persistent() {
-		LOGGER.debug("保存Tracker服务器配置");
 		final AtomicInteger index = new AtomicInteger(0);
 		final var data = TrackerContext.getInstance().sessions().stream()
 			.filter(TrackerSession::available)
+			.sorted()
 			.limit(MAX_TRACKER_SIZE)
 			.collect(Collectors.toMap(
 				session -> String.format("%04d", index.incrementAndGet()),
 				TrackerSession::announceUrl
 			));
-		this.persistent(data, FileUtils.userDirFile(TRACKER_CONFIG));
+		if(LOGGER.isDebugEnabled()) {
+			LOGGER.debug("保存Tracker服务器配置：{}", data.size());
+		}
+		this.persistent(data, TRACKER_CONFIG);
 	}
 	
 }

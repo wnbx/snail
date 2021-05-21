@@ -36,9 +36,6 @@ public final class StunConfig {
 	 */
 	public static final int IPV6 = 0x02;
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private StunConfig() {
 	}
 	
@@ -62,7 +59,7 @@ public final class StunConfig {
 		/**
 		 * <p>消息MASK：{@value}</p>
 		 */
-		public static final short VALUE_MASK = 0B0000_0000_0000_0001;
+		public static final short MASK = 0B0000_0000_0000_0001;
 		
 		/**
 		 * <p>方法ID</p>
@@ -120,7 +117,7 @@ public final class StunConfig {
 		 */
 		public static final short C1_MASK = 0B0000_0001_0000_0000;
 		/**
-		 * <p>前两位必须为零：{@value}</p>
+		 * <p>前两位必须零：{@value}</p>
 		 */
 		public static final short TYPE_MASK = 0B0011_1111_1111_1111;
 		
@@ -178,13 +175,14 @@ public final class StunConfig {
 	
 	/**
 	 * <p>属性类型</p>
-	 * <p>0x0000：保留</p>
+	 * <p>保留：0x0000</p>
+	 * <p>强制解析：0x0000-0x7FFF</p>
+	 * <p>可选解析：0x8000-0xFFFF</p>
 	 * 
 	 * @author acgist
 	 */
 	public enum AttributeType {
 		
-		//================强制解析：0x0000-0x7FFF================//
 		/**
 		 * <p>端口映射：明文</p>
 		 */
@@ -208,7 +206,6 @@ public final class StunConfig {
 		 * <p>端口映射：异或处理数据</p>
 		 */
 		XOR_MAPPED_ADDRESS((short) 0x0020),
-		//================可选解析：0x8000-0xFFFF================//
 		SOFTWARE((short) 0x8022),
 		ALTERNATE_SERVER((short) 0x8023),
 		FINGERPRINT((short) 0x8028);
@@ -254,7 +251,8 @@ public final class StunConfig {
 	}
 
 	/**
-	 * <p>错误编码：300-699</p>
+	 * <p>错误编码</p>
+	 * <p>编码范围：300-699</p>
 	 * 
 	 * @author acgist
 	 */

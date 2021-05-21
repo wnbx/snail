@@ -47,7 +47,7 @@ public final class DhtExtensionMessageHandler implements IExtensionMessageHandle
 	}
 
 	/**
-	 * <p>创建DHT扩展协议代理</p>
+	 * <p>新建DHT扩展协议代理</p>
 	 * 
 	 * @param peerSession Peer信息
 	 * @param torrentSession BT任务信息
@@ -84,7 +84,7 @@ public final class DhtExtensionMessageHandler implements IExtensionMessageHandle
 		final String host = this.peerSession.host();
 		LOGGER.debug("处理DHT消息：{}-{}", host, port);
 		this.peerSession.dhtPort(port);
-		this.torrentSession.newDhtNode(host, port);
+		this.torrentSession.newNode(host, port);
 	}
 
 }

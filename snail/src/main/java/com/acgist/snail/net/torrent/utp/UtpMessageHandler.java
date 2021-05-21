@@ -13,8 +13,10 @@ import org.slf4j.LoggerFactory;
 import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.config.UtpConfig;
 import com.acgist.snail.context.exception.NetException;
-import com.acgist.snail.net.IMessageEncryptSender;
 import com.acgist.snail.net.UdpMessageHandler;
+import com.acgist.snail.net.codec.IMessageEncoder;
+import com.acgist.snail.net.torrent.IEncryptMessageSender;
+import com.acgist.snail.net.torrent.IPeerConnect;
 import com.acgist.snail.net.torrent.peer.PeerCryptMessageCodec;
 import com.acgist.snail.net.torrent.peer.PeerSubMessageHandler;
 import com.acgist.snail.net.torrent.peer.PeerUnpackMessageCodec;
@@ -22,10 +24,10 @@ import com.acgist.snail.utils.CollectionUtils;
 import com.acgist.snail.utils.DateUtils;
 
 /**
- * <p>uTP消息代理</p>
+ * <p>UTP消息代理</p>
  * <p>uTorrent transport protocol</p>
  * <p>协议链接：http://www.bittorrent.org/beps/bep_0029.html</p>
- * <p>uTP头格式</p>
+ * <p>UTP头格式</p>
  * <pre>
  * 0       4       8               16              24              32
  * +-------+-------+---------------+---------------+---------------+
@@ -43,28 +45,15 @@ import com.acgist.snail.utils.DateUtils;
  * 
  * @author acgist
  */
-public final class UtpMessageHandler extends UdpMessageHandler implements IMessageEncryptSender {
+public final class UtpMessageHandler extends UdpMessageHandler implements IEncryptMessageSender {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(UtpMessageHandler.class);
 	
 	/**
-	 * <p>UTP消息请求头长度：{@value}</p>
-	 */
-	private static final int UTP_HEADER_LENGTH = 20;
-	/**
-	 * <p>UTP消息请求头最小长度：{@value}</p>
-	 */
-	private static final int UTP_HEADER_MIN_LENGTH = 20;
-	/**
-	 * <p>UTP扩展消息最小长度：{@value}</p>
-	 */
-	private static final int UTP_EXT_MIN_LENGTH = 2;
-	
-	/**
 	 * <p>是否连接</p>
-	 * <p>不能使用这个状态{@linkplain #available() 判断是否可用}，发送方法判断这个状态，导致发送连接消息失败。</p>
+	 * <p>不能使用方法{@link #available()}判断是否可用：发送方法判断这个状态导致发送连接消息失败</p>
 	 */
-	private boolean connect;
+	private volatile boolean connect;
 	/**
 	 * <p>接收连接ID</p>
 	 */
@@ -73,6 +62,10 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * <p>发送连接ID</p>
 	 */
 	private final short sendId;
+	/**
+	 * <p>连接Key</p>
+	 */
+	private final String key;
 	/**
 	 * <p>UTP Service</p>
 	 */
@@ -93,6 +86,10 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * <p>连接锁</p>
 	 */
 	private final AtomicBoolean connectLock;
+	/**
+	 * <p>消息编码器</p>
+	 */
+	private final IMessageEncoder<ByteBuffer> messageEncoder;
 	/**
 	 * <p>Peer消息代理</p>
 	 */
@@ -122,88 +119,107 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @param peerSubMessageHandler Peer消息代理
 	 * @param socketAddress 地址
 	 * @param connectionId 连接ID
-	 * @param server 是否服务端
+	 * @param server 是否是服务端
 	 */
 	private UtpMessageHandler(PeerSubMessageHandler peerSubMessageHandler, InetSocketAddress socketAddress, short connectionId, boolean server) {
+		super(socketAddress);
+		peerSubMessageHandler.messageEncryptSender(this);
+		final var peerUnpackMessageCodec = new PeerUnpackMessageCodec(peerSubMessageHandler);
+		final var peerCryptMessageCodec = new PeerCryptMessageCodec(peerUnpackMessageCodec, peerSubMessageHandler);
+		this.messageDecoder = peerCryptMessageCodec;
+		this.messageEncoder = peerCryptMessageCodec;
 		this.peerSubMessageHandler = peerSubMessageHandler;
-		this.peerSubMessageHandler.messageEncryptSender(this);
-		final var peerUnpackMessageCodec = new PeerUnpackMessageCodec(this.peerSubMessageHandler);
-		final var peerCryptMessageCodec = new PeerCryptMessageCodec(peerUnpackMessageCodec, this.peerSubMessageHandler);
-		this.messageCodec = peerCryptMessageCodec;
 		this.utpService = UtpService.getInstance();
 		this.sendWindow = UtpWindow.newSendInstance();
-		this.recvWindow = UtpWindow.newRecvInstance(this.messageCodec);
+		this.recvWindow = UtpWindow.newRecvInstance(this.messageDecoder);
 		this.ackLossTimes = new AtomicInteger(0);
 		this.connectLock = new AtomicBoolean(false);
-		this.socketAddress = socketAddress;
-		if(server) { // 服务端
+		if(server) {
 			this.sendId = connectionId;
 			this.recvId = (short) (this.sendId + 1);
-		} else { // 客户端
+		} else {
 			this.recvId = this.utpService.connectionId();
 			this.sendId = (short) (this.recvId + 1);
 		}
+		this.key = this.utpService.buildKey(this.recvId, this.socketAddress);
 		this.utpService.put(this);
 	}
 	
 	/**
-	 * <p>获取Key</p>
+	 * <p>获取连接Key</p>
 	 * 
-	 * @return key
+	 * @return 连接Key
 	 */
 	public String key() {
-		return this.utpService.buildKey(this.recvId, this.socketAddress);
+		return this.key;
+	}
+	
+	@Override
+	public boolean useless() {
+		return this.peerSubMessageHandler.useless();
 	}
 	
 	@Override
 	public void onReceive(ByteBuffer buffer, InetSocketAddress socketAddress) throws NetException {
-		if(buffer.remaining() < UTP_HEADER_MIN_LENGTH) {
+		if(buffer.remaining() < UtpConfig.HEADER_MIN_LENGTH) {
 			throw new NetException("处理UTP消息错误（长度）：" + buffer.remaining());
 		}
-		final byte typeVersion = buffer.get(); // 消息类型
-		final UtpConfig.Type type = UtpConfig.Type.of(typeVersion); // UTP消息类型
+		// 类型版本
+		final byte typeVersion = buffer.get();
+		// 消息类型
+		final UtpConfig.Type type = UtpConfig.Type.of(typeVersion);
 		if(type == null) {
 			throw new NetException("未知UTP消息类型：" + typeVersion);
 		}
-		final byte extension = buffer.get(); // 扩展
-		final short connectionId = buffer.getShort(); // 连接ID
-		final int timestamp = buffer.getInt(); // 时间戳
-		final int timestampDifference = buffer.getInt(); // 时间差
-		final int wndSize = buffer.getInt(); // 窗口大小
-		final short seqnr = buffer.getShort(); // 请求编号
-		final short acknr = buffer.getShort(); // 响应编号
-		if(extension != 0 && buffer.remaining() >= UTP_EXT_MIN_LENGTH) { // 扩展数据
+		// 扩展
+		final byte extension = buffer.get();
+		// 连接ID
+		final short connectionId = buffer.getShort();
+		// 时间戳
+		final int timestamp = buffer.getInt();
+		// 时间差
+		final int timestampDifference = buffer.getInt();
+		// 窗口大小
+		final int wndSize = buffer.getInt();
+		// 请求编号
+		final short seqnr = buffer.getShort();
+		// 响应编号
+		final short acknr = buffer.getShort();
+		// 扩展消息
+		if(extension != 0 && buffer.remaining() >= UtpConfig.EXTENSION_MIN_LENGTH) {
 			final short extLength = buffer.getShort();
 			if(extLength <= 0 || buffer.remaining() < extLength) {
 				throw new NetException("处理UTP消息错误（扩展长度）：" + extLength);
 			}
-			// 扩展信息
 			final byte[] extData = new byte[extLength];
 			buffer.get(extData);
 		}
+		// 注意顺序（性能）：按照消息数量排序
 		switch (type) {
-		case DATA:
-			this.data(timestamp, seqnr, acknr, buffer);
-			break;
-		case STATE:
-			this.state(timestamp, seqnr, acknr, wndSize);
-			break;
-		case FIN:
-			this.fin(timestamp, seqnr, acknr);
-			break;
-		case RESET:
-			this.reset(timestamp, seqnr, acknr);
-			break;
-		case SYN:
-			this.syn(timestamp, seqnr, acknr);
-			break;
-		default:
-			// TODO：多行日志
-			LOGGER.warn(
-				"处理UTP消息错误（未知类型），类型：{}，扩展：{}，连接ID：{}，时间戳：{}，时间差：{}，窗口大小：{}，请求编号：{}，应答编号：{}",
-				type, extension, connectionId, timestamp, timestampDifference, wndSize, seqnr, acknr
+			case DATA -> this.data(timestamp, seqnr, acknr, buffer);
+			case STATE -> this.state(timestamp, seqnr, acknr, wndSize);
+			case FIN -> this.fin(timestamp, seqnr, acknr);
+			case RESET -> this.reset(timestamp, seqnr, acknr);
+			case SYN -> this.syn(timestamp, seqnr, acknr);
+			default -> LOGGER.warn("""
+				处理UTP消息错误（未知类型）
+				类型：{}
+				扩展：{}
+				连接ID：{}
+				时间戳：{}
+				时间差：{}
+				窗口大小：{}
+				请求编号：{}
+				应答编号：{}""",
+				type,
+				extension,
+				connectionId,
+				timestamp,
+				timestampDifference,
+				wndSize,
+				seqnr,
+				acknr
 			);
-			break;
 		}
 	}
 
@@ -214,8 +230,13 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	
 	@Override
 	public void sendEncrypt(ByteBuffer buffer, int timeout) throws NetException {
-		this.messageCodec.encode(buffer);
+		this.messageEncoder.encode(buffer);
 		this.sendPacket(buffer);
+	}
+	
+	@Override
+	public IPeerConnect.ConnectType connectType() {
+		return IPeerConnect.ConnectType.UTP;
 	}
 
 	/**
@@ -231,8 +252,8 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 		int remaining;
 		while((remaining = buffer.remaining()) > 0) {
 			// UDP拆包
-			if(remaining > UtpConfig.UTP_PACKET_MAX_LENGTH) {
-				bytes = new byte[UtpConfig.UTP_PACKET_MAX_LENGTH];
+			if(remaining > UtpConfig.PACKET_MAX_LENGTH) {
+				bytes = new byte[UtpConfig.PACKET_MAX_LENGTH];
 			} else {
 				bytes = new byte[remaining];
 			}
@@ -249,12 +270,12 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 */
 	public boolean connect() {
 		this.connect = false;
+		this.connectLock.set(false);
 		this.syn();
-		// 添加连接锁
 		this.lockConnect();
-		// 连接失败移除
 		if(!this.connect) {
-			this.closeAll();
+			// 连接失败移除
+			this.close();
 		}
 		return this.connect;
 	}
@@ -262,40 +283,30 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	/**
 	 * <p>超时数据包重新发送</p>
 	 * 
-	 * @return true-丢包；false-正常；
+	 * @return 连接是否已经关闭
 	 */
 	public boolean timeoutRetry() {
-		final List<UtpWindowData> windowDatas = this.sendWindow.timeoutWindowData();
-		if(CollectionUtils.isNotEmpty(windowDatas)) {
-			this.data(windowDatas);
-			LOGGER.debug("超时数据包重新发送：{}-{}", this.sendId, windowDatas.size());
+		if(this.available()) {
+			final List<UtpWindowData> windowDatas = this.sendWindow.timeoutWindowData();
+			if(CollectionUtils.isNotEmpty(windowDatas)) {
+				LOGGER.debug("超时数据包重新发送：{}-{}", this.sendId, windowDatas.size());
+				windowDatas.forEach(windowData -> {
+					if(windowData.discard()) {
+						LOGGER.debug("超时数据包重新发送失败（次数超限）：{}", windowData);
+						this.sendWindow.discard(windowData.getSeqnr());
+					} else {
+						this.data(windowData);
+					}
+				});
+			}
+			return false;
+		} else {
 			return true;
 		}
-		return false;
-	}
-	
-	/**
-	 * <p>发送数据包</p>
-	 * 
-	 * @param windowDatas 数据包集合
-	 */
-	private void data(List<UtpWindowData> windowDatas) {
-		if(CollectionUtils.isEmpty(windowDatas)) {
-			return;
-		}
-		windowDatas.forEach(windowData -> {
-			if(windowData.getPushTimes() > UtpConfig.MAX_PUSH_TIMES) {
-				LOGGER.warn("发送数据包失败（次数超限）：{}-{}", windowData.getSeqnr(), windowData.getPushTimes());
-				this.sendWindow.discard(windowData.getSeqnr());
-			} else {
-				this.data(windowData);
-			}
-		});
 	}
 	
 	/**
 	 * <p>处理数据消息</p>
-	 * <p>发送响应消息响应编号等于最后一次处理的接收请求编号</p>
 	 * 
 	 * @param timestamp 时间戳
 	 * @param seqnr 请求编号
@@ -305,14 +316,19 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @throws NetException 网络异常
 	 */
 	private void data(int timestamp, short seqnr, short acknr, ByteBuffer buffer) throws NetException {
-		// TODO：处理acknr
-		LOGGER.debug("处理数据消息：{}", seqnr);
+		if(!this.connect) {
+			LOGGER.debug("UTP通道没有连接：{}-{}", seqnr, acknr);
+			this.close();
+			return;
+		}
+		LOGGER.debug("处理数据消息：{}-{}", seqnr, acknr);
 		try {
 			this.recvWindow.receive(timestamp, seqnr, buffer);
 		} catch (IOException e) {
 			throw new NetException(e);
 		} finally {
-			this.state(timestamp, this.recvWindow.seqnr()); // 最后一次处理的接收请求编号
+			// 响应消息响应编号：最后一次接收请求编号
+			this.state(timestamp, this.recvWindow.seqnr());
 		}
 	}
 	
@@ -323,21 +339,20 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 */
 	private void data(UtpWindowData windowData) {
 		LOGGER.debug("发送数据消息：{}", windowData.getSeqnr());
-		final ByteBuffer buffer = this.buildHeader(UtpConfig.Type.DATA, windowData.getLength() + UTP_HEADER_LENGTH);
-		final int now = windowData.pushUpdateGetTimestamp();
+		final int now = windowData.updateGetTimestamp();
+		final ByteBuffer buffer = this.buildMessage(UtpConfig.Type.DATA, windowData.getLength() + UtpConfig.HEADER_LENGTH);
 		buffer.putShort(this.sendId);
-		buffer.putInt(now); // 更新发送时间
+		buffer.putInt(now);
 		buffer.putInt(now - this.recvWindow.timestamp());
 		buffer.putInt(this.recvWindow.wndSize());
-		buffer.putShort(windowData.getSeqnr()); // seqnr
-		buffer.putShort(this.recvWindow.seqnr()); // acknr
+		buffer.putShort(windowData.getSeqnr());
+		buffer.putShort(this.recvWindow.seqnr());
 		buffer.put(windowData.getData());
 		this.pushMessage(buffer);
 	}
 
 	/**
 	 * <p>处理响应消息</p>
-	 * <p>如果多次返回已处理的数据编号，则视为丢包重新发送最后一个未确认数据包。</p>
 	 * 
 	 * @param timestamp 时间戳
 	 * @param seqnr 请求编号
@@ -345,22 +360,25 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @param wndSize 窗口大小
 	 */
 	private void state(int timestamp, short seqnr, short acknr, int wndSize) {
-		LOGGER.debug("处理响应消息：{}", acknr);
-		if(!this.connect) { // 没有连接
+		LOGGER.debug("处理响应消息：{}-{}", seqnr, acknr);
+		if(!this.connect) {
+			// 没有连接
 			this.connect = this.available();
 			if(this.connect) {
-				this.recvWindow.connect(timestamp, (short) (seqnr - 1)); // 注意：seqnr-1
+				// 注意：seqnr - 1
+				this.recvWindow.connect(timestamp, (short) (seqnr - 1));
 			}
-			// 释放连接锁
 			this.unlockConnect();
 		}
-		// 快速重传
-		final boolean loss = this.sendWindow.ack(acknr, wndSize); // 是否可能丢包
+		// 是否丢包
+		final boolean loss = this.sendWindow.ack(acknr, wndSize);
 		if(loss) {
+			// 快速重传：多次返回已处理的数据编号视为丢包
 			if(this.ackLossTimes.incrementAndGet() > UtpConfig.FAST_ACK_RETRY_TIMES) {
+				// 重新发送最后一个未确认数据包
 				final var packet = this.sendWindow.lastUnack();
 				if(packet != null) {
-					LOGGER.debug("UTP消息快速重传：{}-{}", acknr, packet.getSeqnr());
+					LOGGER.debug("快速重传：{}-{}", acknr, packet.getSeqnr());
 					this.data(packet);
 				}
 			}
@@ -371,7 +389,7 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	
 	/**
 	 * <p>发送响应消息</p>
-	 * <p>发送此消息不增加seqnr</p>
+	 * <p>响应消息不用增加seqnr</p>
 	 * 
 	 * @param timestamp 时间戳
 	 * @param acknr 响应编号
@@ -379,13 +397,13 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	private void state(int timestamp, short acknr) {
 		LOGGER.debug("发送响应消息：{}", acknr);
 		final int now = DateUtils.timestampUs();
-		final ByteBuffer buffer = this.buildHeader(UtpConfig.Type.STATE, UTP_HEADER_LENGTH);
+		final ByteBuffer buffer = this.buildMessage(UtpConfig.Type.STATE, UtpConfig.HEADER_LENGTH);
 		buffer.putShort(this.sendId);
 		buffer.putInt(now);
 		buffer.putInt(now - timestamp);
 		buffer.putInt(this.recvWindow.wndSize());
-		buffer.putShort(this.sendWindow.seqnr()); // seqnr
-		buffer.putShort(acknr); // acknr
+		buffer.putShort(this.sendWindow.seqnr());
+		buffer.putShort(acknr);
 		this.pushMessage(buffer);
 	}
 
@@ -397,12 +415,12 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @param acknr 响应编号
 	 */
 	private void fin(int timestamp, short seqnr, short acknr) {
-		LOGGER.debug("处理结束消息：{}", this.socketAddress);
+		LOGGER.debug("处理结束消息：{}-{}-{}", seqnr, acknr, this.socketAddress);
 		// 如果没有连接不用发送响应消息：防止一直往返确认造成死循环
 		if(this.connect) {
 			this.state(timestamp, seqnr);
 		}
-		this.closeAll();
+		this.closeRemote();
 	}
 	
 	/**
@@ -410,7 +428,7 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 */
 	private void fin() {
 		LOGGER.debug("发送结束消息：{}", this.socketAddress);
-		final ByteBuffer buffer = this.buildHeader(UtpConfig.Type.FIN, UTP_HEADER_LENGTH);
+		final ByteBuffer buffer = this.buildMessage(UtpConfig.Type.FIN, UtpConfig.HEADER_LENGTH);
 		buffer.putShort(this.sendId);
 		buffer.putInt(DateUtils.timestampUs());
 		buffer.putInt(0);
@@ -428,12 +446,12 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @param acknr 响应编号
 	 */
 	private void reset(int timestamp, short seqnr, short acknr) {
-		LOGGER.debug("处理重置消息：{}", this.socketAddress);
+		LOGGER.debug("处理重置消息：{}-{}-{}", seqnr, acknr, this.socketAddress);
 		// 如果没有连接不用发送响应消息：防止一直往返确认造成死循环
 		if(this.connect) {
 			this.state(timestamp, seqnr);
 		}
-		this.closeAll();
+		this.closeRemote();
 	}
 	
 	/**
@@ -441,7 +459,7 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 */
 	private void reset() {
 		LOGGER.debug("发送重置消息：{}", this.socketAddress);
-		final ByteBuffer buffer = this.buildHeader(UtpConfig.Type.RESET, UTP_HEADER_LENGTH);
+		final ByteBuffer buffer = this.buildMessage(UtpConfig.Type.RESET, UtpConfig.HEADER_LENGTH);
 		buffer.putShort(this.sendId);
 		buffer.putInt(DateUtils.timestampUs());
 		buffer.putInt(0);
@@ -459,9 +477,10 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * @param acknr 响应编号
 	 */
 	private void syn(int timestamp, short seqnr, short acknr) {
-		LOGGER.debug("处理握手消息");
+		LOGGER.debug("处理握手消息：{}-{}-{}", seqnr, acknr, this.socketAddress);
 		if(!this.connect) {
 			this.connect = true;
+			// seqnr可以设置为随机值：响应需要默认请求编号（acknr）
 			this.recvWindow.connect(timestamp, seqnr);
 		}
 		this.state(timestamp, seqnr);
@@ -471,11 +490,11 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	 * <p>发送握手消息</p>
 	 */
 	private void syn() {
-		LOGGER.debug("发送握手消息");
+		LOGGER.debug("发送握手消息：{}", this.socketAddress);
 		final UtpWindowData windowData = this.sendWindow.build();
-		final ByteBuffer buffer = buildHeader(UtpConfig.Type.SYN, UTP_HEADER_LENGTH);
+		final ByteBuffer buffer = this.buildMessage(UtpConfig.Type.SYN, UtpConfig.HEADER_LENGTH);
 		buffer.putShort(this.recvId);
-		buffer.putInt(windowData.pushUpdateGetTimestamp());
+		buffer.putInt(windowData.updateGetTimestamp());
 		buffer.putInt(0);
 		buffer.putInt(0);
 		buffer.putShort(windowData.getSeqnr());
@@ -484,22 +503,22 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	}
 
 	/**
-	 * <p>设置消息头</p>
+	 * <p>新建消息</p>
 	 * 
 	 * @param type 消息类型
 	 * @param size 消息长度
 	 * 
 	 * @return 消息
 	 */
-	private ByteBuffer buildHeader(UtpConfig.Type type, int size) {
+	private ByteBuffer buildMessage(UtpConfig.Type type, int size) {
 		final ByteBuffer buffer = ByteBuffer.allocate(size);
-		buffer.put(type.typeVersion()); // 消息类型
-		buffer.put(UtpConfig.EXTENSION); // 扩展扩展
+		buffer.put(type.typeVersion());
+		buffer.put(UtpConfig.EXTENSION);
 		return buffer;
 	}
 	
 	/**
-	 * <p>发送消息</p>
+	 * <p>发送UTP消息</p>
 	 * 
 	 * @param buffer 消息
 	 */
@@ -521,8 +540,8 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 					try {
 						this.connectLock.wait(SystemConfig.CONNECT_TIMEOUT_MILLIS);
 					} catch (InterruptedException e) {
-						LOGGER.debug("线程等待异常", e);
 						Thread.currentThread().interrupt();
+						LOGGER.debug("线程等待异常", e);
 					}
 				}
 			}
@@ -540,8 +559,8 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	}
 	
 	/**
-	 * <p>关闭窗口：释放信号量</p>
-	 * <p>释放信号量才能发送关闭和重置消息，否者可能存在一直等待情况。</p>
+	 * <p>关闭窗口</p>
+	 * <p>关闭窗口释放信号量才能发送关闭和重置消息（否者可能一直等待）</p>
 	 */
 	private void closeWindow() {
 		this.sendWindow.close();
@@ -549,35 +568,34 @@ public final class UtpMessageHandler extends UdpMessageHandler implements IMessa
 	}
 	
 	/**
-	 * <p>关闭所有资源：关闭窗口、设置连接关闭、移除消息代理</p>
+	 * <p>关闭资源</p>
 	 */
-	private void closeAll() {
+	private void closeConnect() {
 		super.close();
 		this.connect = false;
 		this.utpService.remove(this);
 	}
-	
+
 	/**
-	 * {@inheritDoc}
-	 * 
-	 * <p>发送结束消息：标记关闭</p>
+	 * <p>关闭远程</p>
 	 */
-	@Override
-	public void close() {
-		LOGGER.debug("关闭UTP");
+	private void closeRemote() {
 		this.closeWindow();
-		this.fin();
-		this.closeAll();
+		this.closeConnect();
 	}
 	
-	/**
-	 * <p>发送重置消息：标记关闭</p>
-	 */
-	public void resetAndClose() {
-		LOGGER.debug("重置UTP");
+	@Override
+	public void close() {
+		if(this.close) {
+			return;
+		}
 		this.closeWindow();
-		this.reset();
-		this.closeAll();
+		if(this.connect) {
+			this.fin();
+		} else {
+			this.reset();
+		}
+		this.closeConnect();
 	}
 	
 }

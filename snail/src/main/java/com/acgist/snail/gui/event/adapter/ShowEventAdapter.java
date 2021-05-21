@@ -11,7 +11,7 @@ import com.acgist.snail.pojo.message.ApplicationMessage;
  */
 public class ShowEventAdapter extends GuiEvent {
 
-	protected ShowEventAdapter() {
+	public ShowEventAdapter() {
 		super(Type.SHOW, "显示窗口事件");
 	}
 	
@@ -22,7 +22,7 @@ public class ShowEventAdapter extends GuiEvent {
 
 	@Override
 	protected void executeExtend(Object ... args) {
-		final ApplicationMessage message = ApplicationMessage.message(ApplicationMessage.Type.SHOW);
+		final ApplicationMessage message = ApplicationMessage.Type.SHOW.build();
 		GuiContext.getInstance().sendExtendGuiMessage(message);
 	}
 

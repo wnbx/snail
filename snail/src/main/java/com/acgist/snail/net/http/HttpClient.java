@@ -7,7 +7,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -23,11 +22,13 @@ import javax.net.ssl.X509TrustManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.config.SystemConfig;
 import com.acgist.snail.context.exception.NetException;
 import com.acgist.snail.pojo.wrapper.HttpHeaderWrapper;
 import com.acgist.snail.utils.IoUtils;
 import com.acgist.snail.utils.MapUtils;
+import com.acgist.snail.utils.NumberUtils;
 import com.acgist.snail.utils.UrlUtils;
 
 /**
@@ -169,8 +170,8 @@ public final class HttpClient {
 	
 	/**
 	 * @param url 请求地址
-	 * @param connectTimeout 连接超时时间（单位：毫秒）
-	 * @param receiveTimeout 响应超时时间（单位：毫秒）
+	 * @param connectTimeout 连接超时时间（毫秒）
+	 * @param receiveTimeout 响应超时时间（毫秒）
 	 * 
 	 * @throws NetException 网络异常
 	 */
@@ -210,8 +211,8 @@ public final class HttpClient {
 	 * <p>新建HTTP客户端</p>
 	 * 
 	 * @param url 请求地址
-	 * @param connectTimeout 连接超时时间（单位：毫秒）
-	 * @param receiveTimeout 响应超时时间（单位：毫秒）
+	 * @param connectTimeout 连接超时时间（毫秒）
+	 * @param receiveTimeout 响应超时时间（毫秒）
 	 * 
 	 * @return {@link HttpClient}
 	 * 
@@ -245,8 +246,7 @@ public final class HttpClient {
 	}
 	
 	/**
-	 * <p>启用长连接</p>
-	 * <p>系统默认使用长连接</p>
+	 * <p>启用长连接（默认）</p>
 	 * 
 	 * @return {@link HttpClient}
 	 */
@@ -327,8 +327,8 @@ public final class HttpClient {
 		} else {
 			// 请求表单数据
 			final String body = data.entrySet().stream()
-				.map(entry -> entry.getKey() + "=" + UrlUtils.encode(entry.getValue()))
-				.collect(Collectors.joining("&"));
+				.map(entry -> entry.getKey() + SymbolConfig.Symbol.EQUALS.toString() + UrlUtils.encode(entry.getValue()))
+				.collect(Collectors.joining(SymbolConfig.Symbol.AND.toString()));
 			return this.execute(Method.POST, body);
 		}
 	}
@@ -436,7 +436,7 @@ public final class HttpClient {
 	
 	/**
 	 * <p>获取响应数据流</p>
-	 * <p>使用完成需要关闭（归还连接）：下次相同地址端口继续使用</p>
+	 * <p>使用完成需要关闭（归还连接）：下次相同地址端口继续使用（复用底层Socket）</p>
 	 * 
 	 * @return 响应数据流
 	 * 
@@ -485,7 +485,7 @@ public final class HttpClient {
 	public String responseToString() throws NetException {
 		int length;
 		final var input = this.response();
-		final var bytes = new byte[SystemConfig.DEFAULT_EXCHANGE_BYTES_LENGTH];
+		final var bytes = new byte[SystemConfig.DEFAULT_EXCHANGE_LENGTH];
 		final var builder = new StringBuilder();
 		try {
 			while((length = input.read(bytes)) >= 0) {
@@ -513,7 +513,7 @@ public final class HttpClient {
 	
 	/**
 	 * <p>关闭连接</p>
-	 * <p>管理连接和底层Socket：不能保持长连接</p>
+	 * <p>关闭连接和底层Socket：不能保持长连接</p>
 	 * 
 	 * @return {@link HttpClient}
 	 */
@@ -523,10 +523,10 @@ public final class HttpClient {
 	}
 	
 	/**
-	 * <p>创建请求连接</p>
+	 * <p>新建请求连接</p>
 	 * 
-	 * @param connectTimeout 连接超时时间（单位：毫秒）
-	 * @param receiveTimeout 响应超时时间（单位：毫秒）
+	 * @param connectTimeout 连接超时时间（毫秒）
+	 * @param receiveTimeout 响应超时时间（毫秒）
 	 * 
 	 * @return 请求连接
 	 * 
@@ -565,13 +565,13 @@ public final class HttpClient {
 	/**
 	 * <p>新建SSLContext</p>
 	 * 
-	 * @return SSLContext
+	 * @return {@link SSLContext}
 	 */
 	private static final SSLContext buildSSLContext() {
 		try {
 			// SSL协议：SSL、SSLv2、SSLv3、TLS、TLSv1、TLSv1.1、TLSv1.2、TLSv1.3
 			final SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-			sslContext.init(null, new X509TrustManager[] { SnailTrustManager.INSTANCE }, SecureRandom.getInstanceStrong());
+			sslContext.init(null, new X509TrustManager[] { SnailTrustManager.INSTANCE }, NumberUtils.random());
 			return sslContext;
 		} catch (KeyManagementException | NoSuchAlgorithmException e) {
 			LOGGER.error("新建SSLContext异常", e);
@@ -593,9 +593,6 @@ public final class HttpClient {
 
 		private static final SnailHostnameVerifier INSTANCE = new SnailHostnameVerifier();
 		
-		/**
-		 * <p>禁止创建实例</p>
-		 */
 		private SnailHostnameVerifier() {
 		}
 		
@@ -616,9 +613,6 @@ public final class HttpClient {
 
 		private static final SnailTrustManager INSTANCE = new SnailTrustManager();
 
-		/**
-		 * <p>禁止创建实例</p>
-		 */
 		private SnailTrustManager() {
 		}
 		

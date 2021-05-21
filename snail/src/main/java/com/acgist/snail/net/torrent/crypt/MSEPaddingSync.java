@@ -3,9 +3,11 @@ package com.acgist.snail.net.torrent.crypt;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.acgist.snail.context.exception.PacketSizeException;
 import com.acgist.snail.utils.BeanUtils;
+import com.acgist.snail.utils.StringUtils;
 
 /**
  * <p>Padding数据同步工具</p>
@@ -42,7 +44,7 @@ public final class MSEPaddingSync {
 	}
 	
 	/**
-	 * <p>创建同步工具</p>
+	 * <p>新建同步工具</p>
 	 * 
 	 * @param count Padding数据数量
 	 * 
@@ -71,7 +73,8 @@ public final class MSEPaddingSync {
 		}
 		// 开始新的同步数据
 		if(this.length == -1) {
-			if(buffer.remaining() < 2) { // 数据长度不够
+			if(buffer.remaining() < 2) {
+				// 数据长度不够
 				return false;
 			}
 			// 获取数据长度
@@ -104,18 +107,12 @@ public final class MSEPaddingSync {
 		}
 	}
 	
-	/**
-	 * <p>获取所有Padding数据</p>
-	 * 
-	 * @return 所有Padding数据
-	 */
-	public List<byte[]> allPadding() {
-		return this.list;
-	}
-	
 	@Override
 	public String toString() {
-		return BeanUtils.toString(this, this.count, this.length, this.list);
+		final var padding = this.list.stream()
+			.map(StringUtils::hex)
+			.collect(Collectors.toList());
+		return BeanUtils.toString(this, this.count, this.length, padding);
 	}
 	
 }

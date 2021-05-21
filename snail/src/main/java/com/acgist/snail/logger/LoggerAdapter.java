@@ -11,6 +11,10 @@ import java.io.OutputStream;
 public abstract class LoggerAdapter {
 
 	/**
+	 * <p>是否可用</p>
+	 */
+	private volatile boolean available = true;
+	/**
 	 * <p>常规日志输出流</p>
 	 */
 	protected OutputStream output;
@@ -18,11 +22,6 @@ public abstract class LoggerAdapter {
 	 * <p>异常日志输出流</p>
 	 */
 	protected OutputStream errorOutput;
-	/**
-	 * <p>是否可用</p>
-	 * <p>输出流关闭后不再继续记录日志</p>
-	 */
-	private volatile boolean available = true;
 
 	protected LoggerAdapter() {
 	}

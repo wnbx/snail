@@ -2,6 +2,7 @@ package com.acgist.snail.net.torrent;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
 
 import com.acgist.snail.config.StunConfig;
 import com.acgist.snail.net.UdpAcceptHandler;
@@ -11,9 +12,7 @@ import com.acgist.snail.net.torrent.dht.DhtMessageHandler;
 import com.acgist.snail.net.torrent.utp.UtpService;
 
 /**
- * <p>Torrent（UTP、DHT、STUN）消息接收器</p>
- * <p>DHT和STUN消息都使用头一个字符验证：STUN需要进一步验证MagicCookie</p>
- * <p>如果不是DHT和STUN消息则属于UTP消息</p>
+ * <p>Torrent（UTP、DHT、STUN）消息接收代理</p>
  * 
  * @author acgist
  */
@@ -38,9 +37,6 @@ public final class TorrentAcceptHandler extends UdpAcceptHandler {
 	 */
 	private static final byte STUN_HEADER_RECV = 0x01;
 	
-	private TorrentAcceptHandler() {
-	}
-	
 	/**
 	 * <p>UTP Service</p>
 	 */
@@ -54,21 +50,32 @@ public final class TorrentAcceptHandler extends UdpAcceptHandler {
 	 */
 	private final StunMessageHandler stunMessageHandler = new StunMessageHandler();
 	
+	private TorrentAcceptHandler() {
+	}
+	
+	@Override
+	public void handle(DatagramChannel channel) {
+		this.utpService.handle(channel);
+		this.dhtMessageHandler.handle(channel);
+		this.stunMessageHandler.handle(channel);
+	}
+	
 	@Override
 	public UdpMessageHandler messageHandler(ByteBuffer buffer, InetSocketAddress socketAddress) {
-		// 区分类型：DHT、UTP、STUN
 		final byte header = buffer.get(0);
-		if(DHT_HEADER == header) { // DHT
+		if(DHT_HEADER == header) {
+			// DHT消息
 			return this.dhtMessageHandler;
-		} else if(STUN_HEADER_SEND == header || STUN_HEADER_RECV == header) { // STUN
+		} else if(STUN_HEADER_SEND == header || STUN_HEADER_RECV == header) {
+			// STUN消息
 			final int magicCookie = buffer.getInt(4);
-			// 验证：MAGIC_COOKIE
 			if(magicCookie == StunConfig.MAGIC_COOKIE) {
+				// 由于UTP数据（DATA）消息也是0x01所以需要验证MAGIC_COOKIE
 				return this.stunMessageHandler;
 			}
 		}
-		// UTP
-		final short connectionId = buffer.getShort(2); // 连接ID
+		// UTP消息
+		final short connectionId = buffer.getShort(2);
 		return this.utpService.get(connectionId, socketAddress);
 	}
 	

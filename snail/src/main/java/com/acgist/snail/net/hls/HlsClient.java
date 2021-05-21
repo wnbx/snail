@@ -4,6 +4,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -41,7 +42,6 @@ public final class HlsClient implements Runnable {
 	private final String path;
 	/**
 	 * <p>文件大小</p>
-	 * <p>通过HTTP HEAD请求获取</p>
 	 */
 	private long size;
 	/**
@@ -81,27 +81,23 @@ public final class HlsClient implements Runnable {
 
 	@Override
 	public void run() {
-		if(this.completed) {
-			LOGGER.debug("HLS任务已经完成：{}", this.link);
-			return;
-		}
-		if(!this.hlsSession.downloadable()) {
+		if(!this.downloadable()) {
 			LOGGER.debug("HLS任务不能下载：{}", this.link);
 			return;
 		}
-		LOGGER.debug("下载文件：{}", this.link);
-		// 已下载大小
+		LOGGER.debug("HLS任务下载文件：{}", this.link);
+		// 已经下载大小
 		long downloadSize = FileUtils.fileSize(this.path);
 		this.completed = this.checkCompleted(downloadSize);
 		if(this.completed) {
 			LOGGER.debug("HLS文件校验成功：{}", this.link);
 		} else {
 			int length = 0;
-			final ByteBuffer buffer = ByteBuffer.allocateDirect(SystemConfig.DEFAULT_EXCHANGE_BYTES_LENGTH);
+			final ByteBuffer buffer = ByteBuffer.allocateDirect(SystemConfig.DEFAULT_EXCHANGE_LENGTH);
 			try {
 				this.buildInput(downloadSize);
 				this.buildOutput();
-				// 不支持断点续传：重置已下载大小
+				// 不支持断点续传：重置已经下载大小
 				if(!this.range) {
 					downloadSize = 0L;
 				}
@@ -112,7 +108,7 @@ public final class HlsClient implements Runnable {
 						this.output.write(buffer);
 						buffer.clear();
 						downloadSize += length;
-						this.hlsSession.download(length); // 设置下载速度
+						this.hlsSession.download(length);
 					}
 					if(Downloader.checkFinish(length, downloadSize, this.size)) {
 						this.completed = true;
@@ -120,14 +116,14 @@ public final class HlsClient implements Runnable {
 					}
 				}
 			} catch (Exception e) {
-				LOGGER.error("HLS下载异常：{}", this.link, e);
+				LOGGER.error("HLS任务下载异常：{}", this.link, e);
 			}
 		}
 		this.release();
 		if(this.completed) {
 			LOGGER.debug("HLS文件下载完成：{}", this.link);
 			this.hlsSession.remove(this);
-			this.hlsSession.downloadSize(downloadSize); // 设置下载大小
+			this.hlsSession.downloadSize(downloadSize);
 			this.hlsSession.checkCompletedAndDone();
 		} else {
 			LOGGER.debug("HLS文件下载失败：{}", this.link);
@@ -146,15 +142,14 @@ public final class HlsClient implements Runnable {
 	}
 	
 	/**
-	 * <p>校验是否完成</p>
-	 * <p>文件是否存在、大小是否正确</p>
+	 * <p>校验是否下载完成</p>
 	 * 
-	 * @param downloadSize 已下载大小
+	 * @param downloadSize 已经下载大小
 	 * 
-	 * @return 是否完成
+	 * @return 是否下载完成
 	 */
 	private boolean checkCompleted(final long downloadSize) {
-		// 如果文件已经完成直接返回完成
+		// 如果文件已经下载完成直接返回
 		if(this.completed) {
 			return this.completed;
 		}
@@ -167,7 +162,6 @@ public final class HlsClient implements Runnable {
 				.newInstance(this.link)
 				.head()
 				.responseHeader();
-			// 文件实际大小
 			this.size = header.fileSize();
 			return this.size == downloadSize;
 		} catch (NetException e) {
@@ -177,51 +171,46 @@ public final class HlsClient implements Runnable {
 	}
 
 	/**
-	 * <p>创建{@linkplain #input 输入流}</p>
+	 * <p>新建{@linkplain #input 输入流}</p>
 	 * 
-	 * @param downloadSize 已下载大小
+	 * @param downloadSize 已经下载大小
 	 * 
 	 * @throws NetException 网络异常
 	 */
 	private void buildInput(final long downloadSize) throws NetException {
-		// HTTP客户端
 		final var client = HttpClient
 			.newDownloader(this.link)
 			.range(downloadSize)
 			.get();
-		// 请求成功和部分请求成功
 		if(client.downloadable()) {
 			final var headers = client.responseHeader();
 			this.range = headers.range();
 			this.input = Channels.newChannel(client.response());
-			if(this.range) {
-				// 支持断点续传
-				headers.verifyBeginRange(downloadSize);
-			}
 		} else {
-			throw new NetException("HLS客户端输入流创建失败");
+			throw new NetException("HLS客户端输入流新建失败");
 		}
 	}
 	
 	/**
-	 * <p>创建{@linkplain #output 输出流}</p>
+	 * <p>新建{@linkplain #output 输出流}</p>
 	 * 
 	 * @throws NetException 网络异常
 	 */
 	private void buildOutput() throws NetException {
 		try {
 			final int bufferSize = DownloadConfig.getMemoryBufferByte(this.size);
-			BufferedOutputStream outputStream;
+			OutputStream outputStream;
 			if(this.range) {
 				// 支持断点续传
-				outputStream = new BufferedOutputStream(new FileOutputStream(this.path, true), bufferSize);
+				outputStream = new FileOutputStream(this.path, true);
 			} else {
 				// 不支持断点续传
-				outputStream = new BufferedOutputStream(new FileOutputStream(this.path), bufferSize);
+				outputStream = new FileOutputStream(this.path);
 			}
-			this.output = Channels.newChannel(outputStream);
+			final BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(outputStream, bufferSize);
+			this.output = Channels.newChannel(bufferedOutputStream);
 		} catch (FileNotFoundException e) {
-			throw new NetException("HLS客户端输出流创建失败", e);
+			throw new NetException("HLS客户端输出流新建失败", e);
 		}
 	}
 

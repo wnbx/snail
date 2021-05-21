@@ -69,7 +69,7 @@ public abstract class Performance {
 	}
 	
 	/**
-	 * <p>统计开始时间</p>
+	 * <p>开始统计消耗时间</p>
 	 */
 	protected final void cost() {
 		this.costTime.set(System.currentTimeMillis());
@@ -84,14 +84,19 @@ public abstract class Performance {
 	protected final long costed() {
 		final long time = System.currentTimeMillis();
 		final long costed = time - this.costTime.getAndSet(time);
-		// TODO：多行文本
-		LOGGER.info("消耗时间（毫秒）：{}", costed);
-		LOGGER.info("消耗时间（秒）：{}", costed / SystemConfig.ONE_SECOND_MILLIS);
+		if(LOGGER.isInfoEnabled()) {
+			LOGGER.info("""
+				消耗时间（毫秒）：{}
+				消耗时间（秒）：{}""",
+				costed,
+				costed / SystemConfig.ONE_SECOND_MILLIS
+			);
+		}
 		return costed;
 	}
 	
 	/**
-	 * <p>计算执行消耗时间</p>
+	 * <p>重复执行消耗任务</p>
 	 * 
 	 * @param count 执行次数
 	 * @param coster 消耗任务
@@ -111,7 +116,7 @@ public abstract class Performance {
 	}
 	
 	/**
-	 * <p>计算执行消耗时间</p>
+	 * <p>重复执行消耗任务</p>
 	 * 
 	 * @param count 任务数量
 	 * @param thread 线程数量
@@ -132,7 +137,7 @@ public abstract class Performance {
 				try {
 					coster.execute();
 				} catch (Exception e) {
-					LOGGER.error("执行异常", e);
+					LOGGER.error("执行任务异常", e);
 				} finally {
 					latch.countDown();
 				}
@@ -141,8 +146,8 @@ public abstract class Performance {
 		try {
 			latch.await();
 		} catch (InterruptedException e) {
-			LOGGER.error("等待异常", e);
 			Thread.currentThread().interrupt();
+			LOGGER.error("线程等待异常", e);
 		}
 		final long costed = this.costed();
 		SystemThreadContext.shutdownNow(executor);
@@ -150,21 +155,7 @@ public abstract class Performance {
 	}
 
 	/**
-	 * <p>线程阻塞</p>
-	 */
-	public final void pause() {
-		synchronized (this) {
-			try {
-				this.wait();
-			} catch (InterruptedException e) {
-				LOGGER.error("等待异常", e);
-				Thread.currentThread().interrupt();
-			}
-		}
-	}
-	
-	/**
-	 * <p>消耗任务接口</p>
+	 * <p>执行任务接口</p>
 	 * 
 	 * @author acgist
 	 */

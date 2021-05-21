@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.acgist.snail.config.DhtConfig;
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.BeanUtils;
 
 /**
@@ -188,9 +187,8 @@ public abstract class DhtMessage {
 		if(this == object) {
 			return true;
 		}
-		if(object instanceof DhtMessage) {
-			final DhtMessage message = (DhtMessage) object;
-			return ArrayUtils.equals(this.t, message.t);
+		if(object instanceof DhtMessage message) {
+			return Arrays.equals(this.t, message.t);
 		}
 		return false;
 	}

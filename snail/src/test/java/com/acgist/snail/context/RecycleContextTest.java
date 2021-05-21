@@ -11,16 +11,16 @@ import org.junit.jupiter.api.Test;
 
 import com.acgist.snail.utils.Performance;
 
-public class RecycleContextTest extends Performance {
+class RecycleContextTest extends Performance {
 
 	@Test
-	public void testRecycleContext() {
-		assertNotNull(RecycleContext.newInstance("E://snail/tmp.txt"));
+	void testRecycleContext() {
+		assertNotNull(RecycleContext.newInstance("E://snail/tmp/tmp.txt"));
 	}
 	
 	@Test
-	public void testRecycle() throws IOException {
-		final String path = "E://snail/" + System.currentTimeMillis() + ".txt";
+	void testRecycle() throws IOException {
+		final String path = "E://snail/tmp/" + System.currentTimeMillis() + ".txt";
 		final File file = new File(path);
 		file.createNewFile();
 		assertTrue(file.exists());

@@ -9,7 +9,13 @@ import org.slf4j.LoggerFactory;
 import com.acgist.snail.net.torrent.peer.DhtExtensionMessageHandler;
 import com.acgist.snail.net.torrent.peer.ExtensionMessageHandler;
 import com.acgist.snail.net.torrent.peer.PeerSubMessageHandler;
+import com.acgist.snail.net.torrent.peer.extension.DontHaveExtensionMessageHandler;
+import com.acgist.snail.net.torrent.peer.extension.HolepunchMessageHnadler;
+import com.acgist.snail.net.torrent.peer.extension.MetadataMessageHandler;
 import com.acgist.snail.net.torrent.peer.extension.PeerExchangeMessageHandler;
+import com.acgist.snail.net.torrent.peer.extension.UploadOnlyExtensionMessageHandler;
+import com.acgist.snail.utils.ArrayUtils;
+import com.acgist.snail.utils.PeerUtils;
 
 /**
  * <p>Peer配置</p>
@@ -26,16 +32,8 @@ public final class PeerConfig extends PropertiesConfig {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(PeerConfig.class);
 	
-	/**
-	 * <p>单例对象</p>
-	 */
 	private static final PeerConfig INSTANCE = new PeerConfig();
 	
-	/**
-	 * <p>获取单例对象</p>
-	 * 
-	 * @return 单例对象
-	 */
 	public static final PeerConfig getInstance() {
 		return INSTANCE;
 	}
@@ -53,12 +51,6 @@ public final class PeerConfig extends PropertiesConfig {
 	 */
 	public static final int PEER_ID_LENGTH = 20;
 	/**
-	 * <p>保留位长度：{@value}</p>
-	 * 
-	 * @see #RESERVED
-	 */
-	public static final int RESERVED_LENGTH = 8;
-	/**
 	 * <p>保留位</p>
 	 * 
 	 * @see #RESERVED_DHT_PROTOCOL
@@ -68,6 +60,12 @@ public final class PeerConfig extends PropertiesConfig {
 	 * @see #RESERVED_EXTENSION_PROTOCOL
 	 */
 	public static final byte[] RESERVED = {0, 0, 0, 0, 0, 0, 0, 0};
+	/**
+	 * <p>保留位长度</p>
+	 * 
+	 * @see #RESERVED
+	 */
+	public static final int RESERVED_LENGTH = RESERVED.length;
 	/**
 	 * <p>DHT协议保留位：{@value}</p>
 	 * <p>[7]-0x01：DHT Protocol</p>
@@ -113,10 +111,14 @@ public final class PeerConfig extends PropertiesConfig {
 	public static final String PROTOCOL_NAME = "BitTorrent protocol";
 	/**
 	 * <p>协议名称字节数组</p>
+	 * 
+	 * @see #PROTOCOL_NAME
 	 */
 	public static final byte[] PROTOCOL_NAME_BYTES = PROTOCOL_NAME.getBytes();
 	/**
 	 * <p>协议名称字节数组长度</p>
+	 * 
+	 * @see #PROTOCOL_NAME_BYTES
 	 */
 	public static final int PROTOCOL_NAME_LENGTH = PROTOCOL_NAME_BYTES.length;
 	/**
@@ -135,7 +137,6 @@ public final class PeerConfig extends PropertiesConfig {
 	/**
 	 * <p>pex flags：{@value}</p>
 	 * <p>只上传不下载：0x02</p>
-	 * <p>此标记Peer不发送消息：解除阻塞、have、Piece位图</p>
 	 */
 	public static final byte PEX_UPLOAD_ONLY = 1 << 1;
 	/**
@@ -156,7 +157,7 @@ public final class PeerConfig extends PropertiesConfig {
 	/**
 	 * <p>holepunch连接超时时间（毫秒）：{@value}</p>
 	 */
-	public static final int HOLEPUNCH_TIMEOUT = 2000;
+	public static final long HOLEPUNCH_TIMEOUT = 2L * SystemConfig.ONE_SECOND_MILLIS;
 	/**
 	 * <p>PeerId名称配置：{@value}</p>
 	 */
@@ -183,25 +184,98 @@ public final class PeerConfig extends PropertiesConfig {
 	 * 	</tr>
 	 * </table>
 	 */
-	private static final Map<String, String> PEER_NAMES = new HashMap<>();
+	private static final Map<String, String> CLIENT_NAMES = new HashMap<>();
+	/**
+	 * <p>版本信息长度：{@value}</p>
+	 */
+	private static final int PEER_ID_VERSION_LENGTH = 4;
+	/**
+	 * <p>PeerId前缀：{@value}</p>
+	 * <p>AS=ACGIST Snail</p>
+	 */
+	private static final String PEER_ID_PREFIX = "AS";
+	/**
+	 * <p>Piece最小索引：{@value}</p>
+	 */
+	private static final int PIECE_MIN = 0;
+	/**
+	 * <p>Piece最大索引（2^15）：{@value}</p>
+	 */
+	private static final int PIECE_MAX = 32768;
 
 	static {
-		//================保留位================//
+		// 保留位
 		RESERVED[7] |= RESERVED_DHT_PROTOCOL;
 		RESERVED[7] |= RESERVED_PEER_EXCHANGE;
 		RESERVED[7] |= RESERVED_FAST_PROTOCOL;
 		RESERVED[5] |= RESERVED_EXTENSION_PROTOCOL;
-		//================初始化================//
+		// 初始化
 		LOGGER.debug("初始化Peer配置：{}", CLIENT_NAME_CONFIG);
 		INSTANCE.init();
 		INSTANCE.release();
+		LOGGER.debug("PeerIdUrl：{}", INSTANCE.peerIdUrl);
 	}
 	
 	/**
-	 * <p>禁止创建实例</p>
+	 * <p>PeerId</p>
 	 */
+	private final byte[] peerId;
+	/**
+	 * <p>PeerId（HTTP编码）</p>
+	 */
+	private final String peerIdUrl;
+	
 	private PeerConfig() {
 		super(CLIENT_NAME_CONFIG);
+		this.peerId = this.buildPeerId();
+		this.peerIdUrl = PeerUtils.urlEncode(this.peerId);
+	}
+	
+	/**
+	 * <p>生成PeerId</p>
+	 * 
+	 * @return PeerId
+	 */
+	private byte[] buildPeerId() {
+		final byte[] peerIds = new byte[PeerConfig.PEER_ID_LENGTH];
+		// 前缀：-ASXXXX-
+		final StringBuilder builder = new StringBuilder(8);
+		builder.append(SymbolConfig.Symbol.MINUS.toString()).append(PEER_ID_PREFIX);
+		final String version = SystemConfig.getVersion().replace(SymbolConfig.Symbol.DOT.toString(), "");
+		final int versionLength = version.length();
+		if(versionLength > PEER_ID_VERSION_LENGTH) {
+			builder.append(version.substring(0, PEER_ID_VERSION_LENGTH));
+		} else {
+			builder.append(version);
+			builder.append(SymbolConfig.Symbol.ZERO.toString().repeat(PEER_ID_VERSION_LENGTH - versionLength));
+		}
+		builder.append(SymbolConfig.Symbol.MINUS.toString());
+		final byte[] peerIdPrefix = builder.toString().getBytes();
+		final int peerIdPrefixLength = peerIdPrefix.length;
+		System.arraycopy(peerIdPrefix, 0, peerIds, 0, peerIdPrefixLength);
+		// 后缀：随机填充
+		final int paddingLength = PeerConfig.PEER_ID_LENGTH - peerIdPrefixLength;
+		final byte[] padding = ArrayUtils.random(paddingLength);
+		System.arraycopy(padding, 0, peerIds, peerIdPrefixLength, paddingLength);
+		return peerIds;
+	}
+	
+	/**
+	 * <p>获取PeerId</p>
+	 * 
+	 * @return PeerId
+	 */
+	public byte[] peerId() {
+		return this.peerId;
+	}
+	
+	/**
+	 * <p>获取PeerIdUrl</p>
+	 * 
+	 * @return PeerIdUrl
+	 */
+	public String peerIdUrl() {
+		return this.peerIdUrl;
 	}
 	
 	/**
@@ -212,29 +286,28 @@ public final class PeerConfig extends PropertiesConfig {
 	 * @return 客户端名称
 	 */
 	public static final String clientName(byte[] peerId) {
-		if(peerId == null || peerId.length < 3) {
+		if(peerId == null || peerId.length < PeerConfig.PEER_ID_LENGTH) {
 			return UNKNOWN;
 		}
 		String key;
 		final char first = (char) peerId[0];
-		if(first == '-') {
+		if(first == SymbolConfig.Symbol.MINUS.toChar()) {
 			key = new String(peerId, 1, 2);
 		} else {
 			key = new String(peerId, 0, 1);
 		}
-		return PEER_NAMES.getOrDefault(key, UNKNOWN);
+		return CLIENT_NAMES.getOrDefault(key, UNKNOWN);
 	}
 	
 	/**
 	 * <p>设置NAT保留位</p>
-	 * <p>使用STUN穿透时设置NAT保留位</p>
 	 */
 	public static final void nat() {
 		RESERVED[7] |= RESERVED_NAT_TRAVERSAL;
 	}
 	
 	/**
-	 * <p>Peer协议消息类型</p>
+	 * <p>协议消息类型</p>
 	 * <p>协议链接：http://www.bittorrent.org/beps/bep_0004.html</p>
 	 * 
 	 * @author acgist
@@ -347,7 +420,7 @@ public final class PeerConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>Peer来源</p>
+	 * <p>来源</p>
 	 * 
 	 * @author acgist
 	 */
@@ -401,9 +474,12 @@ public final class PeerConfig extends PropertiesConfig {
 		
 		/**
 		 * <p>判断是否优先使用</p>
-		 * <p>以下来源优先使用：{@link #PEX}、{@link #LSD}、{@link #CONNECT}</p>
 		 * 
 		 * @return 是否优先使用
+		 * 
+		 * @see #PEX
+		 * @see #LSD
+		 * @see #CONNECT
 		 */
 		public boolean preference() {
 			return this == PEX || this == LSD || this == CONNECT;
@@ -412,7 +488,7 @@ public final class PeerConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>Peer扩展协议消息类型</p>
+	 * <p>扩展协议消息类型</p>
 	 * 
 	 * @author acgist
 	 */
@@ -420,26 +496,38 @@ public final class PeerConfig extends PropertiesConfig {
 		
 		/**
 		 * <p>握手</p>
+		 * 
+		 * @see ExtensionMessageHandler
 		 */
 		HANDSHAKE((byte) 0x00, "handshake", true, false),
 		/**
 		 * <p>ut_pex</p>
+		 * 
+		 * @see PeerExchangeMessageHandler
 		 */
 		UT_PEX((byte) 0x01, "ut_pex", true, true),
 		/**
 		 * <p>ut_metadata</p>
+		 * 
+		 * @see MetadataMessageHandler
 		 */
 		UT_METADATA((byte) 0x02, "ut_metadata", true, true),
 		/**
 		 * <p>ut_holepunch</p>
+		 * 
+		 * @see HolepunchMessageHnadler
 		 */
 		UT_HOLEPUNCH((byte) 0x03, "ut_holepunch", true, true),
 		/**
 		 * <p>upload_only</p>
+		 * 
+		 * @see UploadOnlyExtensionMessageHandler
 		 */
 		UPLOAD_ONLY((byte) 0x04, "upload_only", true, true),
 		/**
 		 * <p>lt_donthave</p>
+		 * 
+		 * @see DontHaveExtensionMessageHandler
 		 */
 		LT_DONTHAVE((byte) 0x05, "lt_donthave", true, true);
 
@@ -458,7 +546,7 @@ public final class PeerConfig extends PropertiesConfig {
 		private final boolean support;
 		/**
 		 * <p>是否通知</p>
-		 * <p>握手时是否通知Peer支持该扩展</p>
+		 * <p>握手是否通知支持扩展</p>
 		 */
 		private final boolean notice;
 		
@@ -496,7 +584,7 @@ public final class PeerConfig extends PropertiesConfig {
 		/**
 		 * <p>判断是否支持</p>
 		 * 
-		 * @return true-支持；false-不支持；
+		 * @return 是否支持
 		 */
 		public boolean support() {
 			return this.support;
@@ -505,7 +593,7 @@ public final class PeerConfig extends PropertiesConfig {
 		/**
 		 * <p>判断是否通知</p>
 		 * 
-		 * @return true-通知；false-不通知；
+		 * @return 是否通知
 		 */
 		public boolean notice() {
 			return this.notice;
@@ -553,7 +641,7 @@ public final class PeerConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>Metadata扩展协议消息类型</p>
+	 * <p>Metadata协议消息类型</p>
 	 * 
 	 * @author acgist
 	 */
@@ -594,11 +682,11 @@ public final class PeerConfig extends PropertiesConfig {
 		}
 		
 		/**
-		 * <p>通过消息ID获取扩展协议消息类型</p>
+		 * <p>通过消息ID获取Metadata协议消息类型</p>
 		 * 
 		 * @param id 消息ID
 		 * 
-		 * @return 扩展协议消息类型
+		 * @return Metadata协议消息类型
 		 */
 		public static final MetadataType of(byte id) {
 			final var types = MetadataType.values();
@@ -613,7 +701,7 @@ public final class PeerConfig extends PropertiesConfig {
 	}
 
 	/**
-	 * <p>Holepunch扩展协议消息类型</p>
+	 * <p>Holepunch协议消息类型</p>
 	 * 
 	 * @author acgist
 	 */
@@ -654,11 +742,11 @@ public final class PeerConfig extends PropertiesConfig {
 		}
 		
 		/**
-		 * <p>通过消息ID获取扩展协议消息类型</p>
+		 * <p>通过消息ID获取Holepunch协议消息类型</p>
 		 * 
 		 * @param id 消息ID
 		 * 
-		 * @return 扩展协议消息类型
+		 * @return Holepunch协议消息类型
 		 */
 		public static final HolepunchType of(byte id) {
 			final var types = HolepunchType.values();
@@ -673,7 +761,7 @@ public final class PeerConfig extends PropertiesConfig {
 	}
 	
 	/**
-	 * <p>Holepunch扩展协议错误编码</p>
+	 * <p>Holepunch协议错误编码</p>
 	 * 
 	 * @author acgist
 	 */
@@ -745,7 +833,22 @@ public final class PeerConfig extends PropertiesConfig {
 	 * <p>初始化配置</p>
 	 */
 	private void init() {
-		this.properties.forEach((key, value) -> PEER_NAMES.put(key.toString(), value.toString()));
+		this.properties.forEach((key, value) -> CLIENT_NAMES.put(key.toString(), value.toString()));
+	}
+	
+	/**
+	 * <p>判断Piece索引是否正确</p>
+	 * <p>防止索引长度过大导致内存溢出</p>
+	 * 
+	 * @param index Piece索引
+	 * 
+	 * @return 是否正确
+	 * 
+	 * @see #PIECE_MIN
+	 * @see #PIECE_MAX
+	 */
+	public static final boolean checkPiece(int index) {
+		return index >= PIECE_MIN && index <= PIECE_MAX;
 	}
 	
 }

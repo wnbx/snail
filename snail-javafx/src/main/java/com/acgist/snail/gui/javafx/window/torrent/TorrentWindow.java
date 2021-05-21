@@ -1,14 +1,10 @@
 package com.acgist.snail.gui.javafx.window.torrent;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.acgist.snail.gui.javafx.window.Window;
 import com.acgist.snail.pojo.ITaskSession;
 
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.WindowEvent;
 
 /**
  * <p>编辑任务窗口</p>
@@ -17,8 +13,6 @@ import javafx.stage.WindowEvent;
  */
 public final class TorrentWindow extends Window<TorrentController> {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(TorrentWindow.class);
-	
 	private static final TorrentWindow INSTANCE;
 	
 	public static final TorrentWindow getInstance() {
@@ -26,18 +20,18 @@ public final class TorrentWindow extends Window<TorrentController> {
 	}
 	
 	static {
-		LOGGER.debug("初始化编辑任务窗口");
 		INSTANCE = new TorrentWindow();
 	}
 	
 	private TorrentWindow() {
+		super("编辑任务", 800, 600, "/fxml/torrent.fxml");
 	}
 	
 	@Override
 	public void start(Stage stage) throws Exception {
-		this.buildWindow(stage, "编辑任务", 800, 600, "/fxml/torrent.fxml", Modality.APPLICATION_MODAL);
+		this.buildWindow(stage, Modality.APPLICATION_MODAL);
 		this.dialogWindow();
-		this.windowHidden();
+		this.hiddenRelease();
 	}
 	
 	/**
@@ -48,15 +42,6 @@ public final class TorrentWindow extends Window<TorrentController> {
 	public void show(ITaskSession taskSession) {
 		this.controller.buildTree(taskSession);
 		super.showAndWait();
-	}
-	
-	/**
-	 * <p>窗口隐藏：释放资源</p>
-	 */
-	private void windowHidden() {
-		this.stage.addEventFilter(WindowEvent.WINDOW_HIDDEN, event -> {
-			this.controller.release();
-		});
 	}
 	
 }

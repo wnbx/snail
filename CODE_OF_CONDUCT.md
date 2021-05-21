@@ -106,7 +106,12 @@ list.stream()
 
 ###### 示例
 
-`2.2.11`
+`1.1.11`
+
+#### 稳定版本
+
+稳定版本（Release分支）只有使用Java长期支持版本（TLS）才会发布，同时发布Maven中央仓库。
+其他版本发布标签（Tag）不会发布Maven中央仓库。
 
 ### 包命名
 
@@ -137,12 +142,13 @@ list.stream()
 
 #### 抽象类
 
-* 抽象类使用`Abstract`开头
+* 不使用`base`、`Abstract`开头
 * 子类必须使用父类后缀结尾
+* 构造方法必须使用`protected`修饰
 
 ###### 示例
 
-`AbstractTrackerClient` -> [`UdpTrackerClient` | `HttpTrackerClient`]
+`TrackerClient` -> [`UdpTrackerClient` | `HttpTrackerClient`]
 
 #### 工具助手
 
@@ -152,9 +158,9 @@ list.stream()
 ###### 实例
 
 ```java
-# 字体助手
+// 字体助手
 Fonts
-# 时间工具
+// 时间工具
 DateUtils
 ```
 
@@ -217,3 +223,11 @@ DateUtils
 
 * 使用Sonar对代码进行质量检测
 * 使用JaCoCo对代码进行覆盖率检测
+
+> 注释词汇
+|词语|含义|
+|:--|:--|
+|新建|重新建立已经存在类型|
+|创建|首次新建|
+|Builder|构建器|
+|文件夹|推荐使用：目录|

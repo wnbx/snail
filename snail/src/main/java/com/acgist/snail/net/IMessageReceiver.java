@@ -6,12 +6,21 @@ import java.nio.ByteBuffer;
 import com.acgist.snail.context.exception.NetException;
 
 /**
- * <p>消息发送代理接口</p>
+ * <p>消息接收代理接口</p>
  * 
  * @author acgist
  */
 public interface IMessageReceiver {
 
+	/**
+	 * <p>判断是否没有使用</p>
+	 * 
+	 * @return 是否没有使用
+	 */
+	default boolean useless() {
+		return false;
+	}
+	
 	/**
 	 * <p>消息接收</p>
 	 * 

@@ -5,6 +5,7 @@ import java.io.Serializable;
 import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.protocol.Protocol;
 import com.acgist.snail.utils.Base32Utils;
+import com.acgist.snail.utils.DigestUtils;
 import com.acgist.snail.utils.PeerUtils;
 import com.acgist.snail.utils.StringUtils;
 
@@ -32,14 +33,13 @@ public final class InfoHash implements Serializable {
 	 */
 	private final byte[] infoHash;
 	/**
-	 * <p>种子info数据Hash（HEX）</p>
-	 * <p>40位小写</p>
+	 * <p>种子info数据Hash（HEX小写）</p>
 	 * 
 	 * @see #infoHash
 	 */
 	private final String infoHashHex;
 	/**
-	 * <p>种子info数据Hash（HTTP传输编码）</p>
+	 * <p>种子info数据Hash（HTTP编码）</p>
 	 * 
 	 * @see #infoHash
 	 */
@@ -51,10 +51,7 @@ public final class InfoHash implements Serializable {
 	private InfoHash(byte[] infoHash) {
 		this.infoHash = infoHash;
 		this.infoHashHex = StringUtils.hex(this.infoHash);
-		// 标准编码
 		this.infoHashUrl = PeerUtils.urlEncode(this.infoHash);
-		// 全部编码
-//		this.infoHashUrl = PeerUtils.urlEncode(this.infoHashHex());
 	}
 
 	/**
@@ -62,10 +59,10 @@ public final class InfoHash implements Serializable {
 	 * 
 	 * @param data 种子Info
 	 * 
-	 * @return InfoHash
+	 * @return {@link InfoHash}
 	 */
 	public static final InfoHash newInstance(byte[] data) {
-		final InfoHash infoHash = new InfoHash(StringUtils.sha1(data));
+		final InfoHash infoHash = new InfoHash(DigestUtils.sha1(data));
 		infoHash.info = data;
 		infoHash.size = data.length;
 		return infoHash;
@@ -76,7 +73,7 @@ public final class InfoHash implements Serializable {
 	 * 
 	 * @param hash 种子info数据Hash
 	 * 
-	 * @return InfoHash
+	 * @return {@link InfoHash}
 	 * 
 	 * @throws DownloadException 下载异常
 	 */
@@ -140,18 +137,18 @@ public final class InfoHash implements Serializable {
 	}
 	
 	/**
-	 * <p>获取种子info数据Hash（HEX）</p>
+	 * <p>获取种子info数据Hash（HEX小写）</p>
 	 * 
-	 * @return 种子info数据Hash（HEX）
+	 * @return 种子info数据Hash（HEX小写）
 	 */
 	public String infoHashHex() {
 		return this.infoHashHex;
 	}
 	
 	/**
-	 * <p>获取种子info数据Hash（HTTP传输编码）</p>
+	 * <p>获取种子info数据Hash（HTTP编码）</p>
 	 * 
-	 * @return 种子info数据Hash（HTTP传输编码）
+	 * @return 种子info数据Hash（HTTP编码）
 	 */
 	public String infoHashUrl() {
 		return this.infoHashUrl;

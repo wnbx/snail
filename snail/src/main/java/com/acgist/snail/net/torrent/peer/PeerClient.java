@@ -31,12 +31,12 @@ public final class PeerClient extends TcpClient<PeerMessageHandler> {
 	}
 
 	/**
-	 * <p>创建Peer客户端</p>
+	 * <p>新建Peer客户端</p>
 	 * 
 	 * @param peerSession Peer信息
 	 * @param peerSubMessageHandler Peer消息代理
 	 * 
-	 * @return Peer客户端
+	 * @return {@link PeerClient}
 	 */
 	public static final PeerClient newInstance(PeerSession peerSession, PeerSubMessageHandler peerSubMessageHandler) {
 		return new PeerClient(peerSession, peerSubMessageHandler);

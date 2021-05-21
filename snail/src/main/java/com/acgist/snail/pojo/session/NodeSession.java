@@ -2,7 +2,6 @@ package com.acgist.snail.pojo.session;
 
 import java.util.Arrays;
 
-import com.acgist.snail.utils.ArrayUtils;
 import com.acgist.snail.utils.BeanUtils;
 
 /**
@@ -19,11 +18,19 @@ public final class NodeSession implements Comparable<NodeSession> {
 	 */
 	public enum Status {
 		
-		/** 未知：没有使用 */
+		/**
+		 * <p>未知：没有使用</p>
+		 */
 		UNUSE,
-		/** 验证：没有收到响应 */
+		/**
+		 * <p>验证：没有收到响应</p>
+		 * <p>使用后标记为验证状态</p>
+		 * <p>验证状态节点不能用于：保存、查找</p>
+		 */
 		VERIFY,
-		/** 可用：收到响应 */
+		/**
+		 * <p>可用：收到响应</p>
+		 */
 		AVAILABLE;
 		
 	}
@@ -58,13 +65,13 @@ public final class NodeSession implements Comparable<NodeSession> {
 	}
 	
 	/**
-	 * <p>创建节点</p>
+	 * <p>新建DHT节点信息</p>
 	 * 
 	 * @param id 节点ID
 	 * @param host 节点地址
 	 * @param port 节点端口
 	 * 
-	 * @return 节点
+	 * @return {@link NodeSession}
 	 */
 	public static final NodeSession newInstance(byte[] id, String host, int port) {
 		return new NodeSession(id, host, port);
@@ -72,30 +79,23 @@ public final class NodeSession implements Comparable<NodeSession> {
 
 	/**
 	 * <p>判断节点是否可以使用</p>
-	 * <p>如果节点没有使用标记为验证中</p>
 	 * 
 	 * @return 是否可以使用
 	 */
-	public boolean useableAndMark() {
-		if(this.getStatus() == NodeSession.Status.UNUSE) {
-			this.setStatus(NodeSession.Status.VERIFY);
-			return true;
-		} else if(this.getStatus() == NodeSession.Status.VERIFY) {
-			return false;
-		} else if(this.getStatus() == NodeSession.Status.AVAILABLE) {
-			return true;
-		} else {
-			return true;
-		}
-	}
-	
-	/**
-	 * <p>判断节点是否可以保存</p>
-	 * 
-	 * @return 是否可以保存
-	 */
-	public boolean persistentable() {
+	public boolean useable() {
 		return this.status != Status.VERIFY;
+	}
+
+	/**
+	 * <p>标记验证状态</p>
+	 * 
+	 * @return 标记结果
+	 */
+	public boolean markVerify() {
+		if(this.status == Status.UNUSE) {
+			this.status = Status.VERIFY;
+		}
+		return true;
 	}
 	
 	/**
@@ -145,7 +145,7 @@ public final class NodeSession implements Comparable<NodeSession> {
 	
 	@Override
 	public int compareTo(NodeSession target) {
-		return ArrayUtils.compareUnsigned(this.id, target.id);
+		return Arrays.compareUnsigned(this.id, target.id);
 	}
 	
 	@Override
@@ -158,9 +158,8 @@ public final class NodeSession implements Comparable<NodeSession> {
 		if(this == object) {
 			return true;
 		}
-		if(object instanceof NodeSession) {
-			final NodeSession session = (NodeSession) object;
-			return ArrayUtils.equals(this.id, session.id);
+		if(object instanceof NodeSession session) {
+			return Arrays.equals(this.id, session.id);
 		}
 		return false;
 	}

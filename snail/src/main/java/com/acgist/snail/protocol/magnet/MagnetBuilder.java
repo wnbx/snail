@@ -5,6 +5,7 @@ import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.config.SymbolConfig;
 import com.acgist.snail.context.exception.DownloadException;
 import com.acgist.snail.pojo.bean.InfoHash;
 import com.acgist.snail.pojo.bean.Magnet;
@@ -28,15 +29,19 @@ public final class MagnetBuilder {
 	 */
 	public static final String QUERY_DN = "dn";
 	/**
+	 * <p>文件大小：{@value}</p>
+	 */
+	public static final String QUERY_XL = "xl";
+	/**
 	 * <p>资源URN：{@value}</p>
 	 */
 	public static final String QUERY_XT = "xt";
 	/**
-	 * <p>文件链接（经过编码）：{@value}</p>
+	 * <p>文件链接：{@value}</p>
 	 */
 	public static final String QUERY_AS = "as";
 	/**
-	 * <p>绝对资源（经过编码）：{@value}</p>
+	 * <p>绝对资源：{@value}</p>
 	 */
 	public static final String QUERY_XS = "xs";
 	/**
@@ -49,7 +54,7 @@ public final class MagnetBuilder {
 	 */
 	private final String url;
 	/**
-	 * <p>磁力链接信息</p>
+	 * <p>磁力链接</p>
 	 */
 	private Magnet magnet;
 	
@@ -103,49 +108,59 @@ public final class MagnetBuilder {
 		int index;
 		String key;
 		String value;
-		// 这里不能解码：空格创建URI抛出异常
+		// 不能解码：空格新建URI抛出异常
 		final URI uri = URI.create(this.url);
-		final String[] querys = uri.getSchemeSpecificPart().substring(1).split("&");
+		final String[] querys = uri.getSchemeSpecificPart().substring(1).split(SymbolConfig.Symbol.AND.toString());
 		for (String query : querys) {
-			index = query.indexOf('=');
+			index = query.indexOf(SymbolConfig.Symbol.EQUALS.toChar());
 			if(index >= 0 && query.length() > index) {
 				key = query.substring(0, index);
-				// 解码
 				value = UrlUtils.decode(query.substring(index + 1));
 				switch (key) {
-				case QUERY_DN:
-					this.dn(value);
-					break;
-				case QUERY_XT:
-					this.xt(value);
-					break;
-				case QUERY_AS:
-					this.as(value);
-					break;
-				case QUERY_XS:
-					this.xs(value);
-					break;
-				case QUERY_TR:
-					this.tr(value);
-					break;
-				default:
-					LOGGER.debug("磁力链接不支持的参数：{}-{}，磁力链接：{}", key, value, this.url);
-					break;
+					case QUERY_DN -> this.dn(value);
+					case QUERY_XL -> this.xl(value);
+					case QUERY_XT -> this.xt(value);
+					case QUERY_AS -> this.as(value);
+					case QUERY_XS -> this.xs(value);
+					case QUERY_TR -> this.tr(value);
+					default -> LOGGER.debug("磁力链接不支持的参数：{}-{}-{}", key, value, this.url);
 				}
 			} else {
-				LOGGER.debug("磁力链接错误参数：{}，磁力链接：{}", query, this.url);
+				LOGGER.debug("磁力链接错误参数：{}-{}", query, this.url);
 			}
 		}
 		if(this.magnet.supportDownload()) {
 			return this.magnet;
 		}
-		throw new DownloadException("磁力链接创建失败：" + this.url);
+		throw new DownloadException("磁力链接新建失败：" + this.url);
 	}
 	
 	/**
-	 * <p>解析XT：支持BT下载</p>
+	 * <p>设置显示名称</p>
 	 * 
-	 * @param value XT
+	 * @param value 显示名称
+	 * 
+	 * @see Magnet#setDn(String)
+	 */
+	private void dn(String value) {
+		this.magnet.setDn(value);
+	}
+
+	/**
+	 * <p>设置文件大小</p>
+	 * 
+	 * @param value 文件大小
+	 */
+	private void xl(String value) {
+		if(StringUtils.isNumeric(value)) {
+			this.magnet.setXl(Long.valueOf(value));
+		}
+	}
+	
+	/**
+	 * <p>设置资源URN</p>
+	 * 
+	 * @param value 资源URN
 	 * 
 	 * @throws DownloadException 下载异常
 	 */
@@ -169,15 +184,8 @@ public final class MagnetBuilder {
 	}
 	
 	/**
-	 * @param value 显示名称
+	 * <p>设置文件链接</p>
 	 * 
-	 * @see Magnet#setDn(String)
-	 */
-	private void dn(String value) {
-		this.magnet.setDn(value);
-	}
-	
-	/**
 	 * @param value 文件链接
 	 * 
 	 * @see Magnet#setAs(String)
@@ -187,6 +195,8 @@ public final class MagnetBuilder {
 	}
 	
 	/**
+	 * <p>设置绝对资源</p>
+	 * 
 	 * @param value 绝对资源
 	 * 
 	 * @see Magnet#setXs(String)
@@ -196,6 +206,8 @@ public final class MagnetBuilder {
 	}
 	
 	/**
+	 * <p>设置Tracker服务器</p>
+	 * 
 	 * @param value Tracker服务器
 	 * 
 	 * @see Magnet#addTr(String)

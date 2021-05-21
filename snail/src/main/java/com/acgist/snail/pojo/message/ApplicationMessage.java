@@ -9,7 +9,6 @@ import com.acgist.snail.format.BEncodeEncoder;
 
 /**
  * <p>Application消息</p>
- * <p>通过系统消息可以实现系统管理和任务管理</p>
  * 
  * @author acgist
  */
@@ -25,56 +24,97 @@ public class ApplicationMessage {
 	 * <p>成功：{@value}</p>
 	 */
 	public static final String SUCCESS = "success";
+	/**
+	 * <p>消息类型</p>
+	 */
+	private static final String MESSAGE_TYPE = "type";
+	/**
+	 * <p>消息内容</p>
+	 */
+	private static final String MESSAGE_BODY = "body";
 
 	/**
 	 * <p>系统消息、系统通知类型</p>
+	 * <p>系统消息（被动消息）：系统接收来自GUI通知</p>
+	 * <p>系统通知（主动消息）：系统主动发送GUI通知</p>
 	 * 
 	 * @author acgist
 	 */
 	public enum Type {
 		
-		//================被动消息（系统消息）================//
-		
-		/** GUI注册 */
+		/**
+		 * <p>系统消息：GUI注册</p>
+		 */
 		GUI,
-		/** 文本消息 */
+		/**
+		 * <p>系统消息：文本消息</p>
+		 */
 		TEXT,
-		/** 关闭连接 */
+		/**
+		 * <p>系统消息：关闭连接</p>
+		 */
 		CLOSE,
-		/** 唤醒窗口 */
+		/**
+		 * <p>系统消息：唤醒窗口</p>
+		 */
 		NOTIFY,
-		/** 关闭程序 */
+		/**
+		 * <p>系统消息：关闭程序</p>
+		 */
 		SHUTDOWN,
-		/** 新建任务 */
+		/**
+		 * <p>系统消息：新建任务</p>
+		 */
 		TASK_NEW,
-		/** 任务列表 */
+		/**
+		 * <p>系统消息：任务列表</p>
+		 */
 		TASK_LIST,
-		/** 开始任务 */
+		/**
+		 * <p>系统消息：开始任务</p>
+		 */
 		TASK_START,
-		/** 暂停任务 */
+		/**
+		 * <p>系统消息：暂停任务</p>
+		 */
 		TASK_PAUSE,
-		/** 删除任务 */
+		/**
+		 * <p>系统消息：删除任务</p>
+		 */
 		TASK_DELETE,
-		
-		//================主动消息（系统通知）================//
-		
-		/** 显示窗口 */
+		/**
+		 * <p>系统通知：显示窗口</p>
+		 */
 		SHOW,
-		/** 隐藏窗口 */
+		/**
+		 * <p>系统通知：隐藏窗口</p>
+		 */
 		HIDE,
-		/** 提示窗口 */
+		/**
+		 * <p>系统通知：窗口消息</p>
+		 */
 		ALERT,
-		/** 提示消息 */
+		/**
+		 * <p>系统通知：提示消息</p>
+		 */
 		NOTICE,
-		/** 刷新任务 */
-		REFRESH,
-		/** 响应消息 */
+		/**
+		 * <p>系统通知：刷新任务列表</p>
+		 */
+		REFRESH_TASK_LIST,
+		/**
+		 * <p>系统通知：刷新任务状态</p>
+		 */
+		REFRESH_TASK_STATUS,
+		/**
+		 * <p>系统通知：响应消息</p>
+		 */
 		RESPONSE;
 
 		/**
-		 * <p>消息类型转换（忽略大小写）</p>
+		 * <p>通过类型名称获取消息类型</p>
 		 * 
-		 * @param name 类型名称
+		 * @param name 类型名称（忽略大小写）
 		 * 
 		 * @return 消息类型
 		 */
@@ -88,16 +128,36 @@ public class ApplicationMessage {
 			return null;
 		}
 		
+		/**
+		 * <p>新建消息</p>
+		 * 
+		 * @return 系统消息
+		 */
+		public ApplicationMessage build() {
+			return this.build(null);
+		}
+		
+		/**
+		 * <p>新建消息</p>
+		 * 
+		 * @param body 消息内容
+		 * 
+		 * @return 系统消息
+		 */
+		public ApplicationMessage build(String body) {
+			return new ApplicationMessage(this, body);
+		}
+		
 	}
 
 	/**
 	 * <p>消息类型</p>
 	 */
-	private Type type;
+	private final Type type;
 	/**
 	 * <p>消息内容</p>
 	 */
-	private String body;
+	private final String body;
 
 	/**
 	 * @param type 消息类型
@@ -117,67 +177,23 @@ public class ApplicationMessage {
 	 */
 	public static final ApplicationMessage valueOf(String content) {
 		try {
-			final var decoder = BEncodeDecoder.newInstance(content.getBytes());
+			final var decoder = BEncodeDecoder.newInstance(content);
 			decoder.nextMap();
 			if(decoder.isEmpty()) {
 				return null;
 			}
-			final String type = decoder.getString("type");
-			final String body = decoder.getString("body");
+			final String type = decoder.getString(MESSAGE_TYPE);
+			final String body = decoder.getString(MESSAGE_BODY);
 			final Type messageType = Type.of(type);
 			if(messageType == null) {
+				LOGGER.debug("系统消息类型错误：{}", type);
 				return null;
 			}
-			return ApplicationMessage.message(messageType, body);
+			return messageType.build(body);
 		} catch (NetException e) {
-			LOGGER.error("读取系统消息异常：{}", content, e);
+			LOGGER.error("读取系统文本消息异常：{}", content, e);
 		}
 		return null;
-	}
-	
-	/**
-	 * <p>消息</p>
-	 * 
-	 * @param type 消息类型
-	 * 
-	 * @return 系统消息
-	 */
-	public static final ApplicationMessage message(Type type) {
-		return message(type, null);
-	}
-	
-	/**
-	 * <p>消息</p>
-	 * 
-	 * @param type 消息类型
-	 * @param body 消息内容
-	 * 
-	 * @return 系统消息
-	 */
-	public static final ApplicationMessage message(Type type, String body) {
-		return new ApplicationMessage(type, body);
-	}
-	
-	/**
-	 * <p>文本</p>
-	 * 
-	 * @param body 消息内容
-	 * 
-	 * @return 系统消息
-	 */
-	public static final ApplicationMessage text(String body) {
-		return message(Type.TEXT, body);
-	}
-	
-	/**
-	 * <p>响应</p>
-	 * 
-	 * @param body 消息内容
-	 * 
-	 * @return 系统消息
-	 */
-	public static final ApplicationMessage response(String body) {
-		return message(Type.RESPONSE, body);
 	}
 	
 	/**
@@ -190,15 +206,6 @@ public class ApplicationMessage {
 	}
 
 	/**
-	 * <p>设置消息类型</p>
-	 * 
-	 * @param type 消息类型
-	 */
-	public void setType(Type type) {
-		this.type = type;
-	}
-
-	/**
 	 * <p>获取消息内容</p>
 	 * 
 	 * @return 消息内容
@@ -207,26 +214,13 @@ public class ApplicationMessage {
 		return this.body;
 	}
 
-	/**
-	 * <p>设置消息内容</p>
-	 * 
-	 * @param body 消息内容
-	 */
-	public void setBody(String body) {
-		this.body = body;
-	}
-	
-	/**
-	 * <p>转为系统文本消息（B编码）</p>
-	 * 
-	 * @return 系统文本消息
-	 */
 	@Override
 	public String toString() {
-		final var encoder = BEncodeEncoder.newInstance();
-		encoder.newMap().put("type", this.type.name());
+		final var encoder = BEncodeEncoder.newInstance()
+			.newMap()
+			.put(MESSAGE_TYPE, this.type.name());
 		if(this.body != null) {
-			encoder.put("body", this.body);
+			encoder.put(MESSAGE_BODY, this.body);
 		}
 		return encoder.flush().toString();
 	}

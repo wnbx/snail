@@ -7,10 +7,13 @@ import java.nio.channels.CompletionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.acgist.snail.context.MessageHandlerContext;
 import com.acgist.snail.utils.BeanUtils;
 
 /**
- * <p>TCP客户端接收代理</p>
+ * <p>TCP消息接收代理</p>
+ * 
+ * @param <T> TCP消息代理类型
  * 
  * @author acgist
  */
@@ -22,55 +25,44 @@ public final class TcpAcceptHandler<T extends TcpMessageHandler> implements Comp
 	 * <p>消息代理类型</p>
 	 */
 	private final Class<T> clazz;
+	/**
+	 * <p>消息代理上下文</p>
+	 */
+	private final MessageHandlerContext context;
 	
 	/**
 	 * @param clazz 消息代理类型
 	 */
 	private TcpAcceptHandler(Class<T> clazz) {
 		this.clazz = clazz;
+		this.context = MessageHandlerContext.getInstance();
 	}
 	
 	/**
-	 * <p>创建TCP客户端接收代理</p>
+	 * <p>新建TCP消息接收代理</p>
 	 * 
-	 * @param <T> 消息代理泛型
+	 * @param <T> 消息代理类型
 	 * 
 	 * @param clazz 消息代理类型
 	 * 
-	 * @return TCP客户端接收代理
+	 * @return TCP消息接收代理
 	 */
 	public static final <T extends TcpMessageHandler> TcpAcceptHandler<T> newInstance(Class<T> clazz) {
 		return new TcpAcceptHandler<>(clazz);
 	}
 	
 	@Override
-	public void completed(AsynchronousSocketChannel result, AsynchronousServerSocketChannel channel) {
-		LOGGER.debug("客户端连接成功");
-		this.accept(channel);
-		this.handle(result);
+	public void completed(AsynchronousSocketChannel channel, AsynchronousServerSocketChannel server) {
+		LOGGER.debug("TCP连接成功：{}", channel);
+		server.accept(server, this);
+		final T handler = BeanUtils.newInstance(this.clazz);
+		handler.handle(channel);
+		this.context.newInstance(handler);
 	}
 	
 	@Override
-	public void failed(Throwable throwable, AsynchronousServerSocketChannel client) {
-		LOGGER.error("客户端连接异常", throwable);
+	public void failed(Throwable throwable, AsynchronousServerSocketChannel server) {
+		LOGGER.error("TCP连接异常：{}", server, throwable);
 	}
 	
-	/**
-	 * <p>接收连接</p>
-	 * 
-	 * @param channel 通道
-	 */
-	private void accept(AsynchronousServerSocketChannel channel) {
-		channel.accept(channel, this);
-	}
-
-	/**
-	 * <p>消息代理</p>
-	 * 
-	 * @param channel 通道
-	 */
-	private void handle(AsynchronousSocketChannel channel) {
-		BeanUtils.newInstance(this.clazz).handle(channel);
-	}
-
 }

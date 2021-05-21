@@ -4,28 +4,16 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	
-	<!--
-	版本配置：
-		pom.xml
-		snail/pom.xml
-		snail-javafx/pom.xml
-		builder/config.bat
-		SnailLauncher/src/snail.ini
-		snail/src/main/resources/config/system.properties
-	编译命令：mvn -e clean package|install|deploy
-	编译系统：-D javafx.platform=win|mac|linux
-	-->
-	
 	<modelVersion>4.0.0</modelVersion>
 	
 	<groupId>com.acgist</groupId>
 	<artifactId>snail.parent</artifactId>
-	<version>1.7.11</version>
+	<version>1.7.16</version>
 	<packaging>pom</packaging>
 	
 	<properties>
 		<!-- 版本 -->
-		<acgist.version>1.7.11</acgist.version>
+		<snail.version>1.7.16</snail.version>
 		<!-- 作者 -->
 		<vendor>acgist</vendor>
 		<!-- 模块 -->
@@ -33,9 +21,9 @@
 		<!-- 编码 -->
 		<encoding>UTF-8</encoding>
 		<!-- Java版本 -->
-		<java.version>11</java.version>
+		<java.version>16</java.version>
 		<!-- JavaFX版本 -->
-		<javafx.version>11.0.2</javafx.version>
+		<javafx.version>16</javafx.version>
 		<!-- 依赖版本 -->
 		<slf4j.version>1.7.30</slf4j.version>
 		<!-- JUnit版本 -->
@@ -441,7 +429,12 @@
 			<dependency>
 				<groupId>com.acgist</groupId>
 				<artifactId>snail</artifactId>
-				<version>${acgist.version}</version>
+				<version>${snail.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.acgist</groupId>
+				<artifactId>snail.javafx</artifactId>
+				<version>${snail.version}</version>
 			</dependency>
 			<!-- 测试：JUnit -->
 			<dependency>
@@ -502,6 +495,7 @@
 		<system>Gitee Issues</system>
 	</issueManagement>
 	
+	<!-- mvn clean package deploy -P release -D skipTests -->
 	<!-- https://oss.sonatype.org/ -->
 	<!-- https://issues.sonatype.org/browse/OSSRH-51336 -->
 	<distributionManagement>
@@ -515,14 +509,6 @@
 			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
 			<name>Nexus Snapshot Repository</name>
 		</snapshotRepository>
-		<!-- Github需要关闭插件：gpg、nexus -->
-		<!--
-		<repository>
-			<id>github</id>
-			<url>https://maven.pkg.github.com/acgist/snail</url>
-			<name>Github Repository</name>
-		</repository>
-		-->
 	</distributionManagement>
 
 </project>

@@ -10,13 +10,13 @@ import org.slf4j.LoggerFactory;
 
 import com.acgist.snail.context.NodeContext;
 import com.acgist.snail.pojo.bean.InfoHash;
+import com.acgist.snail.pojo.session.NodeSession;
 import com.acgist.snail.pojo.session.TorrentSession;
 import com.acgist.snail.utils.CollectionUtils;
 import com.acgist.snail.utils.NetUtils;
 
 /**
  * <p>DHT定时任务</p>
- * <p>定时使用系统最近的DHT节点和{@link #peerNodes}查询Peer</p>
  * 
  * @author acgist
  */
@@ -29,20 +29,21 @@ public final class DhtLauncher implements Runnable {
 	 */
 	private final InfoHash infoHash;
 	/**
-	 * <p>客户端节点队列</p>
-	 * <p>如果连接的Peer支持DHT，将该Peer作为节点在下次查询时使用并加入到系统节点。</p>
+	 * <p>Peer客户端节点队列</p>
+	 * <p>支持DHT协议的Peer客户端节点</p>
 	 */
-	private final List<InetSocketAddress> peerNodes = new ArrayList<>();
+	private final List<InetSocketAddress> peerNodes;
 	
 	/**
 	 * @param torrentSession BT任务信息
 	 */
 	private DhtLauncher(TorrentSession torrentSession) {
 		this.infoHash = torrentSession.infoHash();
+		this.peerNodes = new ArrayList<>();
 	}
 	
 	/**
-	 * <p>创建DHT定时任务</p>
+	 * <p>新建DHT定时任务</p>
 	 * 
 	 * @param torrentSession BT任务信息
 	 * 
@@ -58,7 +59,7 @@ public final class DhtLauncher implements Runnable {
 		List<InetSocketAddress> nodes;
 		synchronized (this.peerNodes) {
 			nodes = new ArrayList<>(this.peerNodes);
-			this.peerNodes.clear(); // 清空节点信息
+			this.peerNodes.clear();
 		}
 		try {
 			final var list = this.pick();
@@ -73,7 +74,7 @@ public final class DhtLauncher implements Runnable {
 	}
 	
 	/**
-	 * <p>添加DHT Peer客户端</p>
+	 * <p>添加Peer客户端节点</p>
 	 * 
 	 * @param host 地址
 	 * @param port 端口
@@ -93,14 +94,15 @@ public final class DhtLauncher implements Runnable {
 	 */
 	private List<InetSocketAddress> pick() {
 		return NodeContext.getInstance().findNode(this.infoHash.infoHash()).stream()
+			.filter(NodeSession::markVerify)
 			.map(node -> NetUtils.buildSocketAddress(node.getHost(), node.getPort()))
 			.collect(Collectors.toList());
 	}
 
 	/**
-	 * <p>将DHT Peer客户端加入系统节点</p>
+	 * <p>将Peer客户端节点加入到系统节点</p>
 	 * 
-	 * @param peerNodes DHT Peer客户端
+	 * @param peerNodes Peer客户端节点
 	 * 
 	 * @see #peerNodes
 	 */

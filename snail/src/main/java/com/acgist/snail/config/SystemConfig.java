@@ -1,7 +1,5 @@
 package com.acgist.snail.config;
 
-import java.nio.file.Paths;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,16 +14,8 @@ public final class SystemConfig extends PropertiesConfig {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SystemConfig.class);
 	
-	/**
-	 * <p>单例对象</p>
-	 */
 	private static final SystemConfig INSTANCE = new SystemConfig();
 	
-	/**
-	 * <p>获取单例对象</p>
-	 * 
-	 * @return 单例对象
-	 */
 	public static final SystemConfig getInstance() {
 		return INSTANCE;
 	}
@@ -34,6 +24,10 @@ public final class SystemConfig extends PropertiesConfig {
 	 * <p>配置文件：{@value}</p>
 	 */
 	private static final String SYSTEM_CONFIG = "/config/system.properties";
+	/**
+	 * <p>IP端口占用字节大小：{@value}</p>
+	 */
+	public static final int IP_PORT_LENGTH = 6;
 	/**
 	 * <p>数据大小比例：{@value}</p>
 	 */
@@ -49,49 +43,7 @@ public final class SystemConfig extends PropertiesConfig {
 	 */
 	public static final int ONE_MB = DATA_SCALE * ONE_KB;
 	/**
-	 * <p>时间大小比例：{@value}</p>
-	 */
-	public static final int TIME_SCALE = 1000;
-	/**
-	 * <p>一秒钟（毫秒）：{@value}</p>
-	 */
-	public static final int ONE_SECOND_MILLIS = TIME_SCALE;
-	/**
-	 * <p>一分钟（秒数）：{@value}</p>
-	 */
-	public static final long ONE_MINUTE = 60L;
-	/**
-	 * <p>一分钟（毫数）：{@value}</p>
-	 */
-	public static final long ONE_MINUTE_MILLIS = ONE_MINUTE * ONE_SECOND_MILLIS;
-	/**
-	 * <p>一小时（秒数）：{@value}</p>
-	 */
-	public static final long ONE_HOUR = ONE_MINUTE * 60;
-	/**
-	 * <p>一小时（毫数）：{@value}</p>
-	 */
-	public static final long ONE_HOUR_MILLIS = ONE_HOUR * ONE_SECOND_MILLIS;
-	/**
-	 * <p>一天（秒数）：{@value}</p>
-	 */
-	public static final long ONE_DAY = ONE_HOUR * 24;
-	/**
-	 * <p>一天（毫数）：{@value}</p>
-	 */
-	public static final long ONE_DAY_MILLIS = ONE_DAY * ONE_SECOND_MILLIS;
-	/**
-	 * <p>最小下载速度：{@value}</p>
-	 * <p>16KB</p>
-	 */
-	public static final int MIN_DOWNLOAD_BUFFER_KB = 16;
-	/**
-	 * <p>IP和端口占用字节大小：{@value}</p>
-	 */
-	public static final int IP_PORT_LENGTH = 6;
-	/**
 	 * <p>TCP消息缓冲大小：{@value}</p>
-	 * <p>大小和Piece交换Slice大小一样</p>
 	 */
 	public static final int TCP_BUFFER_LENGTH = 16 * ONE_KB;
 	/**
@@ -99,13 +51,33 @@ public final class SystemConfig extends PropertiesConfig {
 	 */
 	public static final int UDP_BUFFER_LENGTH = 2 * ONE_KB;
 	/**
-	 * <p>数据传输默认大小：{@value}</p>
-	 * <p>一般IO读写缓冲数据大小</p>
-	 * <p>注意：默认系统最小下载速度</p>
+	 * <p>最大的网络包大小：{@value}</p>
+	 * <p>校验网络数据大小：防止太长导致内存泄漏</p>
+	 */
+	public static final int MAX_NET_BUFFER_LENGTH = 4 * ONE_MB;
+	/**
+	 * <p>最小下载速度：{@value}</p>
+	 * <p>默认：16KB</p>
+	 */
+	public static final int MIN_DOWNLOAD_BUFFER_KB = 16;
+	/**
+	 * <p>默认数据传输大小：{@value}</p>
 	 * 
 	 * @see #MIN_DOWNLOAD_BUFFER_KB
 	 */
-	public static final int DEFAULT_EXCHANGE_BYTES_LENGTH = MIN_DOWNLOAD_BUFFER_KB * ONE_KB;
+	public static final int DEFAULT_EXCHANGE_LENGTH = MIN_DOWNLOAD_BUFFER_KB * ONE_KB;
+	/**
+	 * <p>时间比例：{@value}</p>
+	 */
+	public static final int DATE_SCALE = 1000;
+	/**
+	 * <p>一秒钟（毫秒）：{@value}</p>
+	 */
+	public static final int ONE_SECOND_MILLIS = DATE_SCALE;
+	/**
+	 * <p>没有超时时间：{@value}</p>
+	 */
+	public static final int NONE_TIMEOUT = 0;
 	/**
 	 * <p>连接超时时间（秒）：{@value}</p>
 	 */
@@ -131,10 +103,14 @@ public final class SystemConfig extends PropertiesConfig {
 	 */
 	public static final int DOWNLOAD_TIMEOUT_MILLIS = DOWNLOAD_TIMEOUT * ONE_SECOND_MILLIS;
 	/**
-	 * <p>最大的网络包大小：{@value}</p>
-	 * <p>如果创建byte[]和ByteBuffer对象的长度是由外部数据决定时需要验证长度：防止太长导致内存泄漏</p>
+	 * <p>刷新时间（秒）：{@value}</p>
+	 * <p>任务列表、速度统计</p>
 	 */
-	public static final int MAX_NET_BUFFER_LENGTH = 4 * ONE_MB;
+	public static final int REFRESH_INTERVAL = 4;
+	/**
+	 * <p>刷新时间（毫秒）：{@value}</p>
+	 */
+	public static final int REFRESH_INTERVAL_MILLIS = REFRESH_INTERVAL * ONE_SECOND_MILLIS;
 	/**
 	 * <p>SHA-1散列值长度：{@value}</p>
 	 */
@@ -156,44 +132,10 @@ public final class SystemConfig extends PropertiesConfig {
 	 */
 	public static final String CHARSET_ISO_8859_1 = "ISO-8859-1";
 	/**
-	 * <p>系统默认编码（file.encoding）：{@value}</p>
+	 * <p>系统默认编码：{@value}</p>
+	 * <p>启动参数：-D file.encoding=UTF-8</p>
 	 */
 	public static final String DEFAULT_CHARSET = CHARSET_UTF8;
-	/**
-	 * <p>无符号BYTE最大值：{@value}</p>
-	 */
-	public static final int UNSIGNED_BYTE_MAX = 2 << 7;
-	/**
-	 * <p>数值：{@value}</p>
-	 */
-	public static final String DIGIT = "0123456789";
-	/**
-	 * <p>字符（小写）：{@value}</p>
-	 */
-	public static final String LETTER = "abcdefghijklmnopqrstuvwxyz";
-	/**
-	 * <p>字符（大写）</p>
-	 * 
-	 * @see #LETTER
-	 */
-	public static final String LETTER_UPPER = LETTER.toUpperCase();
-	/**
-	 * <p>任务列表刷新时间（秒）：{@value}</p>
-	 */
-	public static final int TASK_REFRESH_INTERVAL = 4;
-	/**
-	 * <p>换行分隔符：{@value}</p>
-	 */
-	public static final String LINE_SEPARATOR = "\n";
-	/**
-	 * <p>换行分隔符（兼容）：{@value}</p>
-	 */
-	public static final String LINE_SEPARATOR_COMPAT = "\r\n";
-	/**
-	 * <p>用户工作目录</p>
-	 * <p>注意：初始化为常量（不能使用类变量：本类初始化时会使用）</p>
-	 */
-	private static final String USER_DIR = System.getProperty("user.dir");
 	
 	static {
 		LOGGER.debug("初始化系统配置：{}", SYSTEM_CONFIG);
@@ -327,11 +269,8 @@ public final class SystemConfig extends PropertiesConfig {
 	/**
 	 * <p>外网IP地址</p>
 	 */
-	private String externalIpAddress;
+	private String externalIPAddress;
 	
-	/**
-	 * <p>禁止创建实例</p>
-	 */
 	private SystemConfig() {
 		super(SYSTEM_CONFIG);
 	}
@@ -362,14 +301,13 @@ public final class SystemConfig extends PropertiesConfig {
 		this.haveInterval = this.getInteger("acgist.have.interval", 30);
 		this.trackerInterval = this.getInteger("acgist.tracker.interval", 120);
 		this.peerOptimizeInterval = this.getInteger("acgist.peer.optimize.interval", 60);
-		this.nameEnAndVersion = this.nameEn + " " + this.version;
+		this.nameEnAndVersion = this.nameEn + SymbolConfig.Symbol.SPACE.toString() + this.version;
 	}
 
 	/**
 	 * <p>记录日志</p>
 	 */
 	private void logger() {
-		LOGGER.debug("用户工作目录：{}", SystemConfig.USER_DIR);
 		LOGGER.debug("软件名称：{}", this.name);
 		LOGGER.debug("软件名称（英文）：{}", this.nameEn);
 		LOGGER.debug("软件版本：{}", this.version);
@@ -505,9 +443,10 @@ public final class SystemConfig extends PropertiesConfig {
 	
 	/**
 	 * <p>获取BT服务端口（外网端口：Peer、DHT、UTP、STUN）</p>
-	 * <p>如果不存在返回{@linkplain #getTorrentPort() 本地端口}</p>
 	 * 
 	 * @return BT服务端口（外网端口：Peer、DHT、UTP、STUN）
+	 * 
+	 * @see #getTorrentPort()
 	 */
 	public static final int getTorrentPortExt() {
 		if(INSTANCE.torrentPortExt == 0) {
@@ -518,7 +457,6 @@ public final class SystemConfig extends PropertiesConfig {
 	
 	/**
 	 * <p>设置BT服务端口（外网端口：Peer、DHT、UTP、STUN）</p>
-	 * <p>本地端口和外网端口可能不一致</p>
 	 * 
 	 * @param torrentPortExt BT服务端口（外网端口：Peer、DHT、UTP、STUN）
 	 */
@@ -627,26 +565,6 @@ public final class SystemConfig extends PropertiesConfig {
 	}
 
 	/**
-	 * <p>获取用户工作目录</p>
-	 * 
-	 * @return 用户工作目录
-	 */
-	public static final String userDir() {
-		return SystemConfig.USER_DIR;
-	}
-	
-	/**
-	 * <p>获取用户工作目录中的文件路径</p>
-	 * 
-	 * @param path 文件相对路径
-	 * 
-	 * @return 用户工作目录中的文件路径
-	 */
-	public static final String userDir(String path) {
-		return Paths.get(userDir(), path).toString();
-	}
-	
-	/**
 	 * <p>获取软件信息</p>
 	 * 
 	 * @return 软件信息
@@ -658,11 +576,11 @@ public final class SystemConfig extends PropertiesConfig {
 	/**
 	 * <p>设置外网IP地址</p>
 	 * 
-	 * @param externalIpAddress 外网IP地址
+	 * @param externalIPAddress 外网IP地址
 	 */
-	public static final void setExternalIpAddress(String externalIpAddress) {
-		LOGGER.debug("设置外网IP地址：{}", externalIpAddress);
-		INSTANCE.externalIpAddress = externalIpAddress;
+	public static final void setExternalIPAddress(String externalIPAddress) {
+		LOGGER.debug("设置外网IP地址：{}", externalIPAddress);
+		INSTANCE.externalIPAddress = externalIPAddress;
 	}
 	
 	/**
@@ -670,8 +588,8 @@ public final class SystemConfig extends PropertiesConfig {
 	 * 
 	 * @return 外网IP地址
 	 */
-	public static final String getExternalIpAddress() {
-		return INSTANCE.externalIpAddress;
+	public static final String getExternalIPAddress() {
+		return INSTANCE.externalIPAddress;
 	}
 	
 }

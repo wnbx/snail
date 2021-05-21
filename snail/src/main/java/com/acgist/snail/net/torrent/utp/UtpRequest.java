@@ -3,43 +3,34 @@ package com.acgist.snail.net.torrent.utp;
 import java.nio.ByteBuffer;
 
 import com.acgist.snail.context.exception.NetException;
-import com.acgist.snail.net.codec.IMessageCodec;
+import com.acgist.snail.net.codec.IMessageDecoder;
 
 /**
  * <p>UTP请求</p>
  * 
  * @author acgist
  */
-public final class UtpRequest {
-
+public final record UtpRequest(
 	/**
 	 * <p>请求数据</p>
 	 */
-	private final ByteBuffer buffer;
+	ByteBuffer buffer,
 	/**
 	 * <p>消息处理器</p>
 	 */
-	private final IMessageCodec<ByteBuffer> messageCodec;
-	
+	IMessageDecoder<ByteBuffer> messageDecoder
+) {
+
 	/**
-	 * @param buffer 请求数据
-	 * @param messageCodec 消息处理器
-	 */
-	private UtpRequest(ByteBuffer buffer, IMessageCodec<ByteBuffer> messageCodec) {
-		this.buffer = buffer;
-		this.messageCodec = messageCodec;
-	}
-	
-	/**
-	 * <p>创建UTP请求</p>
+	 * <p>新建UTP请求</p>
 	 * 
 	 * @param buffer 请求数据
-	 * @param messageCodec 消息处理器
+	 * @param messageDecoder 消息处理器
 	 * 
-	 * @return UTP请求
+	 * @return {@link UtpRequest}
 	 */
-	public static final UtpRequest newInstance(ByteBuffer buffer, IMessageCodec<ByteBuffer> messageCodec) {
-		return new UtpRequest(buffer, messageCodec);
+	public static final UtpRequest newInstance(ByteBuffer buffer, IMessageDecoder<ByteBuffer> messageDecoder) {
+		return new UtpRequest(buffer, messageDecoder);
 	}
 	
 	/**
@@ -48,7 +39,7 @@ public final class UtpRequest {
 	 * @throws NetException 网络异常
 	 */
 	public void execute() throws NetException {
-		this.messageCodec.decode(this.buffer);
+		this.messageDecoder.decode(this.buffer);
 	}
 	
 }

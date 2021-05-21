@@ -63,12 +63,12 @@ public final class MSECipher {
 	}
 	
 	/**
-	 * <p>创建请求客户端加解密套件</p>
+	 * <p>新建请求客户端加解密套件</p>
 	 * 
 	 * @param secret DH Secret
 	 * @param infoHash InfoHash
 	 * 
-	 * @return 加解密套件
+	 * @return MSE加解密套件
 	 * 
 	 * @throws NetException 网络异常
 	 */
@@ -78,17 +78,17 @@ public final class MSECipher {
 		try {
 			return new MSECipher(sendKey, recvKey);
 		} catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new NetException("创建加密套件失败", e);
+			throw new NetException("新建加密套件失败", e);
 		}
 	}
 	
 	/**
-	 * <p>创建接入客户端加解密套件</p>
+	 * <p>新建接入客户端加解密套件</p>
 	 * 
 	 * @param secret DH Secret
 	 * @param infoHash InfoHash
 	 * 
-	 * @return 加解密套件
+	 * @return MSE加解密套件
 	 * 
 	 * @throws NetException 网络异常
 	 */
@@ -98,7 +98,7 @@ public final class MSECipher {
 		try {
 			return new MSECipher(recvKey, sendKey);
 		} catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new NetException("创建加密套件失败", e);
+			throw new NetException("新建加密套件失败", e);
 		}
 	}
 
@@ -109,7 +109,7 @@ public final class MSECipher {
 	 */
 	public void encrypt(ByteBuffer buffer) {
 		try {
-			boolean flip = true; // 标记状态
+			boolean flip = true;
 			if(buffer.position() != 0) {
 				flip = false;
 				buffer.flip();
@@ -155,7 +155,7 @@ public final class MSECipher {
 	 */
 	public void decrypt(ByteBuffer buffer) {
 		try {
-			boolean flip = true; // 标记状态
+			boolean flip = true;
 			if(buffer.position() != 0) {
 				flip = false;
 				buffer.flip();
@@ -195,7 +195,7 @@ public final class MSECipher {
 	}
 	
 	/**
-	 * <p>创建请求客户端加密Key</p>
+	 * <p>新建请求客户端加密Key</p>
 	 * 
 	 * @param secret DH Secret
 	 * @param skey InfoHash
@@ -207,7 +207,7 @@ public final class MSECipher {
 	}
 
 	/**
-	 * <p>创建接入客户端加密Key</p>
+	 * <p>新建接入客户端加密Key</p>
 	 * 
 	 * @param secret DH Secret
 	 * @param skey InfoHash
@@ -219,7 +219,7 @@ public final class MSECipher {
 	}
 
 	/**
-	 * <p>创建Key</p>
+	 * <p>新建Key</p>
 	 * 
 	 * @param key keyA | keyB
 	 * @param secret DH Secret
@@ -236,7 +236,7 @@ public final class MSECipher {
 	}
 
 	/**
-	 * <p>创建Cipher</p>
+	 * <p>新建Cipher</p>
 	 * 
 	 * @param mode 模式
 	 * @param transformation 算法
@@ -251,7 +251,8 @@ public final class MSECipher {
 	private Cipher buildCipher(int mode, String transformation, Key key) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
 		final Cipher cipher = Cipher.getInstance(transformation);
 		cipher.init(mode, key);
-		cipher.update(new byte[1024]); // 丢弃1024字节
+		// 丢弃1024字节
+		cipher.update(new byte[1024]);
 		return cipher;
 	}
 
